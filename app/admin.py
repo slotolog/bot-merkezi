@@ -12,7 +12,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (BufferedInputFile, CallbackQuery, InlineKeyboardButton as IB,
-                           InlineKeyboardMarkup, Message)
+                           InlineKeyboardMarkup, Message, ReplyKeyboardRemove)
 from sqlalchemy import delete, select
 
 from .broadcast import BroadcastRunner, active_user_ids, fmt
@@ -21,7 +21,7 @@ from .settings import set_storage, storage_id
 from .db import Broadcast, Delivery, ManagedBot, Session, Subscriber, aware, utcnow
 from .content import send_content
 from .db import AutoQueue, Item, Link
-from .keyboards import (buttons_to_text, build_markup, build_reply_menu, parse_buttons,
+from .keyboards import (buttons_to_text, build_markup, parse_buttons,
                         parse_menu, split_btn_text)
 from .manager import BotManager
 from .stats import bot_detail_text, overview_text, report_text
@@ -104,7 +104,9 @@ async def cmd_start(m: Message, state: FSMContext):
     await state.clear()
     if not storage_ok():
         await m.answer("👋 <b>Kurulum için son adım</b>\n\n" + NO_STORAGE)
-    await m.answer("🎛 <b>Bot Kontrol Merkezi</b>\nNe yapmak istersin?", reply_markup=HOME)
+    # önceki sürümden kalmış olabilecek alt klavye önizlemesini temizle
+    await m.answer("🎛 <b>Bot Kontrol Merkezi</b>", reply_markup=ReplyKeyboardRemove())
+    await m.answer("Ne yapmak istersin?", reply_markup=HOME)
 
 
 @router.message(Command("iptal"))
@@ -400,8 +402,9 @@ async def on_menu_layout(m: Message, state: FSMContext):
         await m.answer("✅ Alt menü kaldırıldı. (Kullanıcılarda bir sonraki /start'ta güncellenir.)",
                        reply_markup=kb([("⚙️ Bota dön", f"bot:{bid}")]))
         return
-    await m.answer("✅ Alt menü kaydedildi. Görünümü 👇", reply_markup=build_reply_menu(rows))
-    await m.answer("Şimdi her butona basılınca ne gönderileceğini ayarla:",
+    layout = "\n".join("  ".join(f"[ {html.escape(t)} ]" for t in r) for r in rows)
+    await m.answer(f"✅ Alt menü kaydedildi. Kullanıcılar şöyle görecek:\n\n{layout}\n\n"
+                   "Şimdi her butona basılınca ne gönderileceğini ayarla:",
                    reply_markup=kb([("💬 Menü yanıtlarını ayarla", f"bmr:{bid}")], [("⚙️ Bota dön", f"bot:{bid}")]))
 
 
