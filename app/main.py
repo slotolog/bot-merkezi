@@ -7,10 +7,12 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.types import BotCommand
 
 from .admin import channel_router, router as admin_router
+from .admin_auto import router as auto_router
 from .broadcast import BroadcastRunner
 from .config import ADMIN_BOT_TOKEN, ADMIN_IDS, PUBLIC_URL
 from .settings import load as load_settings, storage_id
 from .db import init_db
+from .automsg import AutoWorker
 from .manager import BotManager
 from .web import start_web
 
@@ -32,6 +34,7 @@ async def main():
 
     dp = Dispatcher(manager=manager, runner=runner)
     dp.include_router(admin_router)
+    dp.include_router(auto_router)
     dp.include_router(channel_router)
 
     await admin_bot.set_my_commands([BotCommand(command="menu", description="Ana menü"),
@@ -40,11 +43,13 @@ async def main():
     if not PUBLIC_URL:
         log.warning("PUBLIC_URL boş: buton tıklama takibi kapalı.")
     sched = asyncio.create_task(runner.scheduler_loop())
+    auto_task = asyncio.create_task(AutoWorker(manager).loop())
     log.info("Yönetici bot çalışıyor. Bağlı bot sayısı: %d", len(manager.bots))
     try:
         await dp.start_polling(admin_bot, allowed_updates=["message", "callback_query", "channel_post"])
     finally:
         sched.cancel()
+        auto_task.cancel()
         await web_runner.cleanup()
         await manager.close()
 

@@ -35,6 +35,8 @@ class ManagedBot(Base):
     # {"rows": [["A","B"],["C"]], "responses": {"A": {"msg": id, "buttons": [...]}}}
     menu: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    auto_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
+    promo_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
 
 
 class Subscriber(Base):
@@ -50,6 +52,7 @@ class Subscriber(Base):
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    promo_last: Mapped[int | None] = mapped_column(Integer, nullable=True)  # son gösterilen promo id
     __table_args__ = (
         UniqueConstraint("bot_id", "user_id", name="uq_bot_user"),
         Index("ix_sub_bot_status", "bot_id", "status"),
@@ -82,6 +85,33 @@ class Delivery(Base):
     bot_id: Mapped[int] = mapped_column(BigInteger)
     user_id: Mapped[int] = mapped_column(BigInteger)
     message_id: Mapped[int] = mapped_column(Integer)
+
+
+class Item(Base):
+    """Otomatik mesaj (kind='auto') veya promo (kind='promo')."""
+    __tablename__ = "items"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str] = mapped_column(String(64), default="")
+    msgs: Mapped[list] = mapped_column(JSON)
+    buttons: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    btn_text: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    delay_sec: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)  # gönderim / görüntülenme
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AutoQueue(Base):
+    """Gecikmeli otomatik mesaj kuyruğu."""
+    __tablename__ = "auto_queue"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger)
+    user_id: Mapped[int] = mapped_column(BigInteger)
+    item_id: Mapped[int] = mapped_column(Integer, index=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class Setting(Base):

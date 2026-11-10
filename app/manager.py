@@ -35,6 +35,8 @@ class BotManager:
             dp.start_polling(bot, handle_signals=False, close_bot_session=False, allowed_updates=UPDATES),
             name=f"bot-{mb.username}")
         log.info("Bot başlatıldı: @%s", mb.username)
+        from .automsg import sync_commands
+        asyncio.create_task(sync_commands(bot))
 
     async def stop_polling(self, bot_id: int):
         dp = self.dps.pop(bot_id, None)

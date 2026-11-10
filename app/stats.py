@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import distinct, func, select
 
 from .config import TZ
-from .db import Broadcast, Click, Link, ManagedBot, Session, Subscriber, aware
+from .db import Broadcast, Click, Item, Link, ManagedBot, Session, Subscriber, aware
 
 fmt = lambda n: f"{n:,}".replace(",", ".")  # noqa: E731
 
@@ -90,6 +90,8 @@ async def bot_detail_text(bot_id: int) -> str:
                                           func.count().filter(Subscriber.status == "active"))
                                    .where(Subscriber.bot_id == bot_id)
                                    .group_by(Subscriber.source).order_by(func.count().desc()).limit(10))).all()
+        item_rows = (await s.execute(select(Item.kind, Item.title, Item.count, Item.enabled)
+                                     .where(Item.bot_id == bot_id).order_by(Item.kind, Item.position))).all()
         langs = (await s.execute(select(Subscriber.lang, func.count())
                                  .where(Subscriber.bot_id == bot_id, Subscriber.status == "active")
                                  .group_by(Subscriber.lang).order_by(func.count().desc()).limit(5))).all()
@@ -120,6 +122,14 @@ async def bot_detail_text(bot_id: int) -> str:
     if langs:
         lines += ["", "<b>Dil dağılımı</b> (aktif)"]
         lines.append(" • ".join(f"{(l or '?').upper()}: {fmt(n)}" for l, n in langs))
+    autos = [r for r in item_rows if r[0] == "auto"]
+    promos = [r for r in item_rows if r[0] == "promo"]
+    if autos:
+        lines += ["", f"<b>📨 Otomatik mesajlar</b> ({'🟢' if b.auto_enabled is not False else '⏸'})"]
+        lines += [f"• {'' if en else '⏸ '}{html.escape(t)}: {fmt(n)} gönderim" for _, t, n, en in autos]
+    if promos:
+        lines += ["", f"<b>🎁 Promolar</b> ({'🟢' if b.promo_enabled is not False else '⏸'})"]
+        lines += [f"• {'' if en else '⏸ '}{html.escape(t)}: {fmt(n)} görüntülenme" for _, t, n, en in promos]
     lines += ["", f"🔗 Kaynak takibi linki: <code>https://t.me/{html.escape(b.username)}?start=KAYNAK_ADI</code>"]
     return "\n".join(lines)
 

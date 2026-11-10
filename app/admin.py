@@ -20,7 +20,7 @@ from .config import ADMIN_IDS, PUBLIC_URL, TZ
 from .settings import set_storage, storage_id
 from .db import Broadcast, Delivery, ManagedBot, Session, Subscriber, aware, utcnow
 from .content import send_content
-from .db import Link
+from .db import AutoQueue, Item, Link
 from .keyboards import (buttons_to_text, build_markup, build_reply_menu, parse_buttons,
                         parse_menu, split_btn_text)
 from .manager import BotManager
@@ -73,7 +73,7 @@ def kb(*rows) -> InlineKeyboardMarkup:
 
 HOME = kb([("🤖 Botlarım", "bots"), ("➕ Bot Ekle", "addbot")],
           [("📢 Yayın Yap", "bc:new"), ("📊 Analiz", "stats")],
-          [("📑 Yayın Raporları", "reports")])
+          [("📨 Otomatik Mesajlar", "autoall"), ("📑 Yayın Raporları", "reports")])
 BACK_HOME = [("🏠 Ana menü", "home")]
 
 
@@ -192,6 +192,7 @@ async def bot_panel(bot_id: int):
     markup = kb(
         [("📊 Detaylı analiz", f"bst:{bot_id}"), ("📢 Bu bottan yayın", f"bcb:{bot_id}")],
         [("👋 Karşılama mesajı", f"bwel:{bot_id}"), ("📋 Alt menü", f"bmenu:{bot_id}")],
+        [("📨 Otomatik mesajlar", f"itl:auto:{bot_id}"), ("🎁 Promolar", f"itl:promo:{bot_id}")],
         [("💬 Menü yanıtları", f"bmr:{bot_id}"), ("🔄 Aktiflik kontrolü", f"bchk:{bot_id}")],
         [("📥 Aboneleri indir (CSV)", f"bcsv:{bot_id}")],
         [("⏸ Durdur" if b.enabled else "▶️ Başlat", f"btog:{bot_id}"), ("🗑 Botu kaldır", f"bdel:{bot_id}")],
@@ -242,6 +243,8 @@ async def cb_del_ok(c: CallbackQuery, manager: BotManager):
     await manager.remove(bid)
     async with Session() as s:
         await s.execute(delete(Subscriber).where(Subscriber.bot_id == bid))
+        await s.execute(delete(Item).where(Item.bot_id == bid))
+        await s.execute(delete(AutoQueue).where(AutoQueue.bot_id == bid))
         await s.execute(delete(ManagedBot).where(ManagedBot.id == bid))
         await s.commit()
     await show(c, "🗑 Bot kaldırıldı.", kb([("⬅️ Botlarım", "bots")]))
@@ -425,7 +428,8 @@ async def cb_menu_item(c: CallbackQuery, state: FSMContext):
     text = flat[int(idx)]
     await state.set_state(MenuSt.resp_msg)
     await state.update_data(bot_id=int(bid), item=text)
-    await show(c, f"«{html.escape(text)}» butonuna basılınca gidecek mesajı gönder (metin/foto/video).\n"
+    await show(c, f"«{html.escape(text)}» butonuna basılınca gidecek mesajı gönder (metin/foto/video/albüm).\n\n"
+                  "🎁 Bu buton sıradaki promoyu göstersin istiyorsan <code>promo</code> yaz.\n"
                   "Yanıtı kaldırmak için <code>-</code> yaz. İptal: /iptal")
 
 
@@ -443,6 +447,20 @@ async def on_menu_resp_msg(m: Message, state: FSMContext):
             await s.commit()
         await state.clear()
         await m.answer("✅ Yanıt kaldırıldı.", reply_markup=kb([("💬 Menü yanıtları", f"bmr:{data['bot_id']}")]))
+        return
+    if m.text and m.text.strip().lower() in ("promo", "/promo"):
+        async with Session() as s:
+            b = await s.get(ManagedBot, data["bot_id"])
+            menu = dict(b.menu or {})
+            resp = dict(menu.get("responses") or {})
+            resp[data["item"]] = {"action": "promo"}
+            menu["responses"] = resp
+            b.menu = menu
+            await s.commit()
+        await state.clear()
+        await m.answer(f"✅ «{html.escape(data['item'])}» butonu artık sıradaki promoyu gösterecek.",
+                       reply_markup=kb([("🎁 Promolar", f"itl:promo:{data['bot_id']}")],
+                                       [("💬 Menü yanıtları", f"bmr:{data['bot_id']}")]))
         return
     msg_ids = await take_content(m, state)
     if msg_ids is None:

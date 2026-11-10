@@ -2,10 +2,11 @@
 import logging
 
 from aiogram import Bot, F, Router
-from aiogram.filters import CommandObject, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
 from sqlalchemy import select
 
+from .automsg import send_next_promo, start_chain
 from .content import content_ids, send_content
 from .db import Session, Subscriber, get_bot_row, utcnow
 from .keyboards import build_markup, build_reply_menu
@@ -35,9 +36,11 @@ def make_child_router() -> Router:
     async def on_start(m: Message, bot: Bot, command: CommandObject):
         source = (command.args or "organik")[:64]
         u = m.from_user
+        is_new = False
         async with Session() as s:
             sub = await s.scalar(select(Subscriber).where(Subscriber.bot_id == bot.id, Subscriber.user_id == u.id))
             if sub is None:
+                is_new = True
                 s.add(Subscriber(bot_id=bot.id, user_id=u.id, username=u.username, first_name=u.first_name,
                                  lang=u.language_code, source=source))
             else:
@@ -61,6 +64,18 @@ def make_child_router() -> Router:
         except Exception as e:  # depo mesajı silinmiş vb.
             log.warning("Karşılama gönderilemedi (%s): %s", bot.id, e)
             await m.answer(f"Hoş geldin {u.first_name}! 👋", reply_markup=reply_menu)
+        if is_new:
+            await start_chain(bot, u.id)
+
+    @r.message(Command("promo"), F.chat.type == "private")
+    async def on_promo(m: Message, bot: Bot):
+        if not await send_next_promo(bot, m.from_user.id):
+            await m.answer("Şu an aktif bir promo yok. Yeni kampanyalar geldiğinde haber vereceğiz! 🔔")
+
+    @r.message(Command("stop"), F.chat.type == "private")
+    async def on_stop(m: Message, bot: Bot):
+        await set_status(bot.id, m.from_user.id, "unsub")
+        await m.answer("🔕 Bildirimler kapatıldı. Tekrar açmak için /start yazabilirsin.")
 
     @r.my_chat_member(F.chat.type == "private")
     async def on_member(ev: ChatMemberUpdated, bot: Bot):
@@ -80,7 +95,10 @@ def make_child_router() -> Router:
         row = await get_bot_row(bot.id)
         responses = ((row.menu or {}).get("responses") or {}) if row else {}
         resp = responses.get(m.text)
-        if resp:
+        if resp and resp.get("action") == "promo":
+            if not await send_next_promo(bot, m.chat.id):
+                await m.answer("Şu an aktif bir promo yok. 🔔")
+        elif resp:
             try:
                 await send_stored(bot, m.chat.id, resp)
             except Exception as e:
