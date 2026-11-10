@@ -113,8 +113,15 @@ async def register_channel(bot: Bot, chat, can_post: bool):
         await notify_admins(f"⚠️ @{html.escape(me.username)} <b>{html.escape(chat.title or '')}</b> kanalına admin "
                             "eklendi ama <b>mesaj gönderme</b> yetkisi kapalı. Yetkiyi açınca kanal otomatik aktif olur.")
     elif new:
+        warn = ""
+        try:
+            await bot.get_chat(storage_id())
+        except Exception:
+            warn = (f"\n\n⚠️ @{html.escape(me.username)} depo kanalında admin değil. Paylaşım yapabilmesi için "
+                    "bu botu depo kanalına da <b>admin</b> olarak ekle.")
         await notify_admins(f"✅ Yeni kanal eklendi: <b>{html.escape(chat.title or '')}</b>\n"
-                            f"Paylaşımı @{html.escape(me.username)} yapacak. 📢 Kanal Paylaşımları menüsünden yönetebilirsin.")
+                            f"Paylaşımı @{html.escape(me.username)} yapacak. 📢 Kanal Paylaşımları menüsünden yönetebilirsin."
+                            + warn)
 
 
 async def unregister_channel(bot: Bot, chat):
@@ -125,6 +132,20 @@ async def unregister_channel(bot: Bot, chat):
             await s.commit()
             await notify_admins(f"⚠️ Bot <b>{html.escape(chat.title or '')}</b> kanalından çıkarıldı, "
                                 "bu kanala paylaşım durduruldu.")
+
+
+async def explain_not_found(bot: Bot, channel_id: int) -> str:
+    """'chat not found' depo kanalından mı, hedef kanaldan mı? Anlaşılır mesaj üretir."""
+    me = await bot.me()
+    try:
+        await bot.get_chat(storage_id())
+    except Exception:
+        return f"@{me.username} depo kanalında admin değil → depo kanalına admin olarak ekle"
+    try:
+        await bot.get_chat(channel_id)
+    except Exception:
+        return f"@{me.username} bu kanalda değil veya kanal silinmiş → botu kanala tekrar admin ekle"
+    return "Telegram: chat not found"
 
 
 # ---------- paylaşım ----------
@@ -181,6 +202,8 @@ async def post_to_channel(manager, ch: Channel, lib: LibItem, cfg: dict, source:
                 await asyncio.sleep(e.retry_after + 1)
             except Exception as e:
                 err = str(e)[:250]
+                if "chat not found" in err.lower():
+                    err = await explain_not_found(bot, ch.id)
                 break
     async with Session() as s:
         s.add(ChannelLog(channel_id=ch.id, lib_id=lib.id, ok=False, error=err or "bilinmeyen hata", source=source))
