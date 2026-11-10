@@ -74,7 +74,8 @@ def kb(*rows) -> InlineKeyboardMarkup:
 HOME = kb([("🤖 Botlarım", "bots"), ("➕ Bot Ekle", "addbot")],
           [("📢 Yayın Yap", "bc:new"), ("📊 Analiz", "stats")],
           [("🎁 Promolar", "lib"), ("📨 Otomatik Mesajlar", "autoall")],
-          [("📢 Kanal Paylaşımları", "ch"), ("📑 Yayın Raporları", "reports")])
+          [("📢 Kanal Paylaşımları", "ch"), ("📑 Yayın Raporları", "reports")],
+          [("🖥 Sistem durumu", "sys")])
 BACK_HOME = [("🏠 Ana menü", "home")]
 
 
@@ -107,6 +108,18 @@ async def cmd_start(m: Message, state: FSMContext):
     # önceki sürümden kalmış olabilecek alt klavye önizlemesini temizle
     await m.answer("🎛 <b>Bot Kontrol Merkezi</b>", reply_markup=ReplyKeyboardRemove())
     await m.answer("Ne yapmak istersin?", reply_markup=HOME)
+
+
+@router.message(Command("durum"))
+async def cmd_status(m: Message):
+    from .health import status_text
+    await m.answer(await status_text(), reply_markup=kb([("🔄 Yenile", "sys")], BACK_HOME))
+
+
+@router.callback_query(F.data == "sys")
+async def cb_status(c: CallbackQuery):
+    from .health import status_text
+    await show(c, await status_text(), kb([("🔄 Yenile", "sys")], BACK_HOME))
 
 
 @router.message(Command("iptal"))

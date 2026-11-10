@@ -15,6 +15,7 @@ from .settings import RUNTIME, load as load_settings, storage_id
 from .db import init_db
 from .automsg import AutoWorker
 from .channels import FeedRunner
+from .health import alert_loop
 from .manager import BotManager
 from .external import ExternalSync
 from .web import start_web
@@ -43,6 +44,7 @@ async def main():
     dp.include_router(channel_router)
 
     await admin_bot.set_my_commands([BotCommand(command="menu", description="Ana menü"),
+                                     BotCommand(command="durum", description="Sistem durumu"),
                                      BotCommand(command="iptal", description="İşlemi iptal et")])
     web_runner = await start_web()
     if not PUBLIC_URL:
@@ -50,6 +52,7 @@ async def main():
     sched = asyncio.create_task(runner.scheduler_loop())
     auto_task = asyncio.create_task(AutoWorker(manager).loop())
     feed_task = asyncio.create_task(FeedRunner(manager).loop())
+    health_task = asyncio.create_task(alert_loop())
     hb_task = asyncio.create_task(ExternalSync(manager).loop())
     log.info("Yönetici bot çalışıyor. Bağlı bot sayısı: %d", len(manager.bots))
     try:
@@ -58,6 +61,7 @@ async def main():
         sched.cancel()
         auto_task.cancel()
         feed_task.cancel()
+        health_task.cancel()
         hb_task.cancel()
         await web_runner.cleanup()
         await manager.close()
