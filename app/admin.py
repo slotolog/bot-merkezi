@@ -73,7 +73,8 @@ def kb(*rows) -> InlineKeyboardMarkup:
 
 HOME = kb([("🤖 Botlarım", "bots"), ("➕ Bot Ekle", "addbot")],
           [("📢 Yayın Yap", "bc:new"), ("📊 Analiz", "stats")],
-          [("📨 Otomatik Mesajlar", "autoall"), ("📑 Yayın Raporları", "reports")])
+          [("🎁 Promolar", "lib"), ("📨 Otomatik Mesajlar", "autoall")],
+          [("📑 Yayın Raporları", "reports")])
 BACK_HOME = [("🏠 Ana menü", "home")]
 
 
@@ -192,7 +193,7 @@ async def bot_panel(bot_id: int):
     markup = kb(
         [("📊 Detaylı analiz", f"bst:{bot_id}"), ("📢 Bu bottan yayın", f"bcb:{bot_id}")],
         [("👋 Karşılama mesajı", f"bwel:{bot_id}"), ("📋 Alt menü", f"bmenu:{bot_id}")],
-        [("📨 Otomatik mesajlar", f"itl:auto:{bot_id}"), ("🎁 Promolar", f"itl:promo:{bot_id}")],
+        [("📨 Otomatik zincir", f"itl:auto:{bot_id}"), ("🎁 /promo havuzu", f"itl:promo:{bot_id}")],
         [("💬 Menü yanıtları", f"bmr:{bot_id}"), ("🔄 Aktiflik kontrolü", f"bchk:{bot_id}")],
         [("📥 Aboneleri indir (CSV)", f"bcsv:{bot_id}")],
         [("⏸ Durdur" if b.enabled else "▶️ Başlat", f"btog:{bot_id}"), ("🗑 Botu kaldır", f"bdel:{bot_id}")],
@@ -459,7 +460,7 @@ async def on_menu_resp_msg(m: Message, state: FSMContext):
             await s.commit()
         await state.clear()
         await m.answer(f"✅ «{html.escape(data['item'])}» butonu artık sıradaki promoyu gösterecek.",
-                       reply_markup=kb([("🎁 Promolar", f"itl:promo:{data['bot_id']}")],
+                       reply_markup=kb([("🎁 /promo havuzu", f"itl:promo:{data['bot_id']}")],
                                        [("💬 Menü yanıtları", f"bmr:{data['bot_id']}")]))
         return
     msg_ids = await take_content(m, state)

@@ -10,7 +10,7 @@ from aiogram.types import BotCommand
 from sqlalchemy import delete, select, update
 
 from .content import send_content
-from .db import AutoQueue, Item, ManagedBot, Session, Subscriber, utcnow
+from .db import AutoQueue, Item, LibItem, ManagedBot, Session, Subscriber, utcnow
 from .keyboards import build_markup
 
 log = logging.getLogger(__name__)
@@ -41,16 +41,33 @@ def fmt_delay(sec: int) -> str:
 
 
 async def list_items(bot_id: int, kind: str, only_enabled=False) -> list[Item]:
+    """only_enabled: hem bottaki kaydı hem de bağlı kütüphane içeriği açık olanlar."""
     async with Session() as s:
-        q = select(Item).where(Item.bot_id == bot_id, Item.kind == kind)
+        q = (select(Item).outerjoin(LibItem, LibItem.id == Item.lib_id)
+             .where(Item.bot_id == bot_id, Item.kind == kind))
         if only_enabled:
-            q = q.where(Item.enabled.is_(True))
+            q = q.where(Item.enabled.is_(True), (Item.lib_id.is_(None)) | (LibItem.enabled.is_(True)))
         return list((await s.scalars(q.order_by(Item.position, Item.id))).all())
 
 
+async def content_of(item: Item):
+    """(msgs, buttons, btn_text) — kütüphaneye bağlıysa oradan; silinmiş/kapalıysa None."""
+    if item.lib_id:
+        async with Session() as s:
+            lib = await s.get(LibItem, item.lib_id)
+        if not lib or not lib.enabled:
+            return None
+        return lib.msgs, lib.buttons, lib.btn_text
+    return item.msgs, item.buttons, item.btn_text
+
+
 async def send_item(bot: Bot, chat_id: int, item: Item, extra_markup=None):
-    markup = build_markup(item.buttons) or (extra_markup if len(item.msgs) == 1 else None)
-    return await send_content(bot, chat_id, item.msgs, markup, item.btn_text)
+    c = await content_of(item)
+    if c is None:
+        return None
+    msgs, buttons, btn_text = c
+    markup = build_markup(buttons) or (extra_markup if len(msgs) == 1 else None)
+    return await send_content(bot, chat_id, msgs, markup, btn_text)
 
 
 async def _bump(item_id: int, n: int = 1):
@@ -71,8 +88,8 @@ async def start_chain(bot: Bot, user_id: int):
     for it in items:
         if it.delay_sec <= 0:
             try:
-                await send_item(bot, user_id, it)
-                await _bump(it.id)
+                if await send_item(bot, user_id, it) is not None:
+                    await _bump(it.id)
             except Exception as e:
                 log.warning("Otomatik mesaj gönderilemedi: %s", e)
             await asyncio.sleep(0.3)
@@ -120,8 +137,8 @@ class AutoWorker:
                 continue
             for _ in range(3):
                 try:
-                    await send_item(bot, row.user_id, item)
-                    await _bump(item.id)
+                    if await send_item(bot, row.user_id, item) is not None:
+                        await _bump(item.id)
                     break
                 except TelegramRetryAfter as e:
                     await asyncio.sleep(e.retry_after + 1)

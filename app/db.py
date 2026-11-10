@@ -87,6 +87,18 @@ class Delivery(Base):
     message_id: Mapped[int] = mapped_column(Integer)
 
 
+class LibItem(Base):
+    """Promo kütüphanesi: bir kere kaydedilir, botların zincir/promo listelerine bağlanır."""
+    __tablename__ = "library"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(64), default="")
+    msgs: Mapped[list] = mapped_column(JSON)
+    buttons: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    btn_text: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Item(Base):
     """Otomatik mesaj (kind='auto') veya promo (kind='promo')."""
     __tablename__ = "items"
@@ -101,6 +113,7 @@ class Item(Base):
     delay_sec: Mapped[int] = mapped_column(Integer, default=0)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     count: Mapped[int] = mapped_column(Integer, default=0)  # gönderim / görüntülenme
+    lib_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # kütüphane bağlantısı
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
