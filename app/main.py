@@ -16,6 +16,7 @@ from .db import init_db
 from .automsg import AutoWorker
 from .channels import FeedRunner
 from .manager import BotManager
+from .haberolog import HaberologSync
 from .web import start_web
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -49,6 +50,7 @@ async def main():
     sched = asyncio.create_task(runner.scheduler_loop())
     auto_task = asyncio.create_task(AutoWorker(manager).loop())
     feed_task = asyncio.create_task(FeedRunner(manager).loop())
+    hb_task = asyncio.create_task(HaberologSync(manager).loop())
     log.info("Yönetici bot çalışıyor. Bağlı bot sayısı: %d", len(manager.bots))
     try:
         await dp.start_polling(admin_bot, allowed_updates=["message", "callback_query", "channel_post"])
@@ -56,6 +58,7 @@ async def main():
         sched.cancel()
         auto_task.cancel()
         feed_task.cancel()
+        hb_task.cancel()
         await web_runner.cleanup()
         await manager.close()
 

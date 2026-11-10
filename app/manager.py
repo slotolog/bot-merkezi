@@ -26,6 +26,10 @@ class BotManager:
     async def start_polling(self, mb: ManagedBot):
         if mb.id in self.dps:
             return
+        from .haberolog import is_hb, mode
+        if is_hb(mb) and mode() == "A":
+            log.info("@%s Haberolog A modunda: polling Haberolog servisinde.", mb.username)
+            return
         bot = self.bots.get(mb.id) or Bot(mb.token)
         self.bots[mb.id] = bot
         dp = Dispatcher()

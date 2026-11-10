@@ -20,6 +20,9 @@ services:
       # Takip sunucusu. Nginx/Cloudflare arkasındaysa 127.0.0.1 kalsın;
       # doğrudan açmak istersen "8080:8080" yap.
       - "127.0.0.1:8080:8080"
+    volumes:
+      # Haberolog (@haberologbot) A/B modu: Haberolog'un veri klasörü
+      - /opt/haberolog/data:/haberolog
     depends_on:
       db:
         condition: service_healthy

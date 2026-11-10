@@ -187,8 +187,14 @@ async def bot_panel(bot_id: int):
         from .stats import EMPTY, bot_counts
         c = (await bot_counts(s, bot_id)).get(bot_id, EMPTY)
     menu_rows = (b.menu or {}).get("rows") or []
+    from .haberolog import is_hb, mode as hb_mode
+    hb = is_hb(b)
+    if hb and hb_mode() == "A":
+        status = "🅰️ Haberolog otomatik sistemi yürütüyor (A modu)\n📢 Buradan yayın yapabilirsin; aboneler her dakika aktarılır."
+    else:
+        status = f"Durum: {'🟢 Çalışıyor' if b.enabled else '⏸ Durduruldu'}" + (" (🅱️ B modu)" if hb else "")
     text = (f"⚙️ <b>@{html.escape(b.username)}</b> — {html.escape(b.name)}\n"
-            f"Durum: {'🟢 Çalışıyor' if b.enabled else '⏸ Durduruldu'}\n\n"
+            f"{status}\n\n"
             f"👥 {fmt(c['total'])} start • ✅ {fmt(c['active'])} aktif • 📈 bugün +{fmt(c['today'])}\n"
             f"👋 Karşılama: {'özel' if b.welcome else 'varsayılan'} • 📋 Alt menü: "
             f"{sum(len(r) for r in menu_rows)} buton")
@@ -201,7 +207,49 @@ async def bot_panel(bot_id: int):
         [("⏸ Durdur" if b.enabled else "▶️ Başlat", f"btog:{bot_id}"), ("🗑 Botu kaldır", f"bdel:{bot_id}")],
         [("⬅️ Botlarım", "bots")] + BACK_HOME,
     )
+    if hb:
+        cur = hb_mode()
+        markup.inline_keyboard.insert(0, [IB(
+            text=f"🔀 Mod: {'🅰️ Haberolog otomatik' if cur == 'A' else '🅱️ Bot Merkezi'} — değiştir",
+            callback_data=f"hbm:{bot_id}")])
+        if cur == "A":  # A modunda başlat/durdur Haberolog'a ait; karışıklık olmasın
+            markup.inline_keyboard = [r for r in markup.inline_keyboard
+                                      if not any((x.callback_data or "").startswith("btog:") for x in r)] + []
+            markup.inline_keyboard.insert(-1, [IB(text="🗑 Botu kaldır", callback_data=f"bdel:{bot_id}")])
     return text, markup
+
+
+@router.callback_query(F.data.startswith("hbm:"))
+async def cb_hb_mode(c: CallbackQuery):
+    from .haberolog import mode as hb_mode
+    bid = int(c.data.split(":")[1])
+    cur = hb_mode()
+    if cur == "A":
+        text = ("🔀 <b>B moduna geçilsin mi?</b>\n\n"
+                "• Haberolog'un otomatik haberleri, günlük bülteni ve kelime bildirimleri <b>durur</b>.\n"
+                "• Bot tamamen buradan yürütülür: karşılama mesajı, alt menü, zincir, promo, yayın.\n"
+                "• Haberolog kullanıcıları buraya aktarılır, kimse kaybolmaz.\n"
+                "• İstediğin an tekrar A'ya dönebilirsin.")
+        target = "B"
+    else:
+        text = ("🔀 <b>A moduna (Haberolog otomatik) dönülsün mü?</b>\n\n"
+                "• Otomatik haberler, bülten ve kelime takibi tekrar başlar.\n"
+                "• Bu sırada gelen aboneler Haberolog'a da aktarılır.\n"
+                "• A modunda da buradan yayın yapmaya devam edebilirsin.")
+        target = "A"
+    await show(c, text, kb([(f"✅ Evet, {target} moduna geç", f"hbs:{bid}:{target}")], [("❌ Vazgeç", f"bot:{bid}")]))
+
+
+@router.callback_query(F.data.startswith("hbs:"))
+async def cb_hb_switch(c: CallbackQuery, manager: BotManager):
+    from .haberolog import switch
+    _, bid, target = c.data.split(":")
+    bid = int(bid)
+    await c.answer("Geçiş yapılıyor…")
+    await show(c, "⏳ Mod değiştiriliyor, ~15 saniye sürebilir…")
+    msg = await switch(manager, bid, target)
+    _, markup = await bot_panel(bid)
+    await c.message.answer(msg, reply_markup=markup)
 
 
 @router.callback_query(F.data.startswith("bot:"))
