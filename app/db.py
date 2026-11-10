@@ -127,6 +127,40 @@ class AutoQueue(Base):
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class Channel(Base):
+    """Paylaşım yapılacak kanal; bot_id = kanalda admin olan bağlı bot."""
+    __tablename__ = "channels"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    bot_id: Mapped[int] = mapped_column(BigInteger)
+    title: Mapped[str] = mapped_column(String(256), default="")
+    username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FeedPost(Base):
+    """Düzenli akıştaki post sırası (içerik kütüphaneden)."""
+    __tablename__ = "feed_posts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    lib_id: Mapped[int] = mapped_column(Integer, index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ChannelLog(Base):
+    __tablename__ = "channel_log"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    channel_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    lib_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    message_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=True)
+    error: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    source: Mapped[str] = mapped_column(String(10), default="feed")  # feed / manual
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class Setting(Base):
     __tablename__ = "settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)

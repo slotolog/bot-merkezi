@@ -146,6 +146,12 @@ async def on_lib_buttons(m: Message, state: FSMContext, bot: Bot, manager: BotMa
         await _resync(manager, [origin["bot"]])
         await m.answer("🎁 Botun /promo havuzuna eklendi.", reply_markup=kb([("📋 Listeye dön", f"itl:promo:{origin['bot']}")]))
         return
+    if origin and origin["kind"] == "feed":
+        from .admin_channels import add_feed_post
+        await add_feed_post(lib_id)
+        await state.clear()
+        await m.answer("📢 Kanal akışına eklendi.", reply_markup=kb([("📋 Post sırası", "chq")]))
+        return
     if origin and origin["kind"] == "auto":
         await state.set_state(LibSt.delay)
         await state.update_data(lib_id=lib_id, mode="auto", sel=[origin["bot"]])

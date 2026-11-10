@@ -25,3 +25,7 @@ async def set_storage(chat_id: int):
             s.add(Setting(key="storage_chat_id", value=str(chat_id)))
         await s.commit()
     _state["storage"] = chat_id
+
+
+# Çalışma anı referansları (ör. yönetici bot), main.py doldurur.
+RUNTIME: dict = {}

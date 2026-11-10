@@ -74,7 +74,7 @@ def kb(*rows) -> InlineKeyboardMarkup:
 HOME = kb([("🤖 Botlarım", "bots"), ("➕ Bot Ekle", "addbot")],
           [("📢 Yayın Yap", "bc:new"), ("📊 Analiz", "stats")],
           [("🎁 Promolar", "lib"), ("📨 Otomatik Mesajlar", "autoall")],
-          [("📑 Yayın Raporları", "reports")])
+          [("📢 Kanal Paylaşımları", "ch"), ("📑 Yayın Raporları", "reports")])
 BACK_HOME = [("🏠 Ana menü", "home")]
 
 

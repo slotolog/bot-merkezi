@@ -8,11 +8,13 @@ from aiogram.types import BotCommand
 
 from .admin import channel_router, router as admin_router
 from .admin_auto import router as auto_router
+from .admin_channels import router as channels_router
 from .broadcast import BroadcastRunner
 from .config import ADMIN_BOT_TOKEN, ADMIN_IDS, PUBLIC_URL
-from .settings import load as load_settings, storage_id
+from .settings import RUNTIME, load as load_settings, storage_id
 from .db import init_db
 from .automsg import AutoWorker
+from .channels import FeedRunner
 from .manager import BotManager
 from .web import start_web
 
@@ -28,6 +30,7 @@ async def main():
     if not storage_id():
         log.warning("Depo kanalı ayarlı değil: kanala /depo yazılınca ayarlanır.")
     admin_bot = Bot(ADMIN_BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+    RUNTIME["admin_bot"] = admin_bot
     manager = BotManager()
     await manager.load_all()
     runner = BroadcastRunner(manager, admin_bot)
@@ -35,6 +38,7 @@ async def main():
     dp = Dispatcher(manager=manager, runner=runner)
     dp.include_router(admin_router)
     dp.include_router(auto_router)
+    dp.include_router(channels_router)
     dp.include_router(channel_router)
 
     await admin_bot.set_my_commands([BotCommand(command="menu", description="Ana menü"),
@@ -44,12 +48,14 @@ async def main():
         log.warning("PUBLIC_URL boş: buton tıklama takibi kapalı.")
     sched = asyncio.create_task(runner.scheduler_loop())
     auto_task = asyncio.create_task(AutoWorker(manager).loop())
+    feed_task = asyncio.create_task(FeedRunner(manager).loop())
     log.info("Yönetici bot çalışıyor. Bağlı bot sayısı: %d", len(manager.bots))
     try:
         await dp.start_polling(admin_bot, allowed_updates=["message", "callback_query", "channel_post"])
     finally:
         sched.cancel()
         auto_task.cancel()
+        feed_task.cancel()
         await web_runner.cleanup()
         await manager.close()
 

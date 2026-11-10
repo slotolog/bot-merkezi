@@ -85,6 +85,15 @@ def make_child_router() -> Router:
         elif st == "member":
             await set_status(bot.id, ev.from_user.id, "active")
 
+    @r.my_chat_member(F.chat.type == "channel")
+    async def on_channel_member(ev: ChatMemberUpdated, bot: Bot):
+        from .channels import register_channel, unregister_channel
+        new = ev.new_chat_member
+        if new.status == "administrator":
+            await register_channel(bot, ev.chat, bool(getattr(new, "can_post_messages", False)))
+        elif new.status in ("left", "kicked", "member"):
+            await unregister_channel(bot, ev.chat)
+
     @r.callback_query(F.data == "unsub")
     async def on_unsub(c: CallbackQuery, bot: Bot):
         await set_status(bot.id, c.from_user.id, "unsub")
