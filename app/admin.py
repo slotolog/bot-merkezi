@@ -21,7 +21,7 @@ from .settings import set_storage, storage_id
 from .db import Broadcast, Delivery, ManagedBot, Session, Subscriber, aware, utcnow
 from .content import send_content
 from .db import AutoQueue, Item, Link
-from .keyboards import (buttons_to_text, build_markup, parse_buttons,
+from .keyboards import (buttons_to_text, build_markup, parse_buttons, split_style,
                         parse_menu, split_btn_text)
 from .manager import BotManager
 from .stats import bot_detail_text, overview_text, report_text
@@ -433,7 +433,8 @@ async def cb_menu(c: CallbackQuery, state: FSMContext):
     await show(c, "📋 <b>Alt menü</b> (sohbetin altında sabit duran butonlar)\n\n"
                   f"Şu anki:\n<code>{html.escape(current)}</code>\n\n"
                   "Yeni menüyü yaz (her satır bir sıra, <code>|</code> ile yan yana):\n"
-                  "<code>🎁 Bonuslar | 🎰 Oyunlar\n📞 Destek | 📢 Kanalımız</code>\n\n"
+                  "<code>🔵 ✅ GÜNCEL GİRİŞ | 🟢 🎁 DENEME BONUSU\n🔴 🔥 PROMOSYON KODU | 🟢 📩 CANLI DESTEK</code>\n\n"
+                  "🟢 yeşil • 🔴 kırmızı • 🔵 mavi (renk istemezsen başa koyma)\n"
                   "Menüyü kaldırmak için <code>-</code> yaz. İptal: /iptal")
 
 
@@ -449,7 +450,7 @@ async def on_menu_layout(m: Message, state: FSMContext):
     async with Session() as s:
         b = await s.get(ManagedBot, bid)
         old = (b.menu or {}).get("responses") or {}
-        texts = {t for r in rows for t in r}
+        texts = {split_style(t)[0] for r in rows for t in r}
         b.menu = {"rows": rows, "responses": {k: v for k, v in old.items() if k in texts}} if rows else None
         await s.commit()
     await state.clear()
@@ -474,7 +475,7 @@ async def cb_menu_resp(c: CallbackQuery, state: FSMContext):
         await show(c, "Önce alt menü oluştur.", kb([("📋 Alt menü", f"bmenu:{bid}")], [("⬅️ Geri", f"bot:{bid}")]))
         return
     resp = menu.get("responses") or {}
-    rows = [[(f"{'✅' if t in resp else '⬜'} {t}", f"mri:{bid}:{i}")] for i, t in enumerate(flat)]
+    rows = [[(f"{'✅' if split_style(t)[0] in resp else '⬜'} {t}", f"mri:{bid}:{i}")] for i, t in enumerate(flat)]
     rows.append([("⬅️ Geri", f"bot:{bid}")])
     await show(c, "💬 Yanıtını ayarlamak istediğin menü butonunu seç:\n✅ ayarlı • ⬜ boş", kb(*rows))
 
@@ -484,7 +485,7 @@ async def cb_menu_item(c: CallbackQuery, state: FSMContext):
     _, bid, idx = c.data.split(":")
     b = await _get(int(bid))
     flat = [t for r in ((b.menu or {}).get("rows") or []) for t in r]
-    text = flat[int(idx)]
+    text = split_style(flat[int(idx)])[0]  # kullanıcının bastığı yazı (renk emojisi olmadan)
     await state.set_state(MenuSt.resp_msg)
     await state.update_data(bot_id=int(bid), item=text)
     await show(c, f"«{html.escape(text)}» butonuna basılınca gidecek mesajı gönder (metin/foto/video/albüm).\n\n"

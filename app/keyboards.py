@@ -98,9 +98,22 @@ def parse_menu(text: str) -> list[list[str]]:
     return rows
 
 
+def split_style(text: str) -> tuple[str, str | None]:
+    """'🟢 Giriş' → ('Giriş', 'success'). Renk emojisi yoksa (text, None)."""
+    t = text.strip()
+    for emo, st in STYLE_PREFIX.items():
+        if t.startswith(emo):
+            return t[len(emo):].strip() or t, st
+    return t, None
+
+
 def build_reply_menu(rows: list[list[str]] | None) -> ReplyKeyboardMarkup | None:
     if not rows:
         return None
+
+    def btn(t):
+        label, style = split_style(t)
+        return KeyboardButton(text=label, style=style)
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=t) for t in row] for row in rows],
+        keyboard=[[btn(t) for t in row] for row in rows],
         resize_keyboard=True, is_persistent=True)
