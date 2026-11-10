@@ -102,8 +102,9 @@ app/web.py        tıklama takibi yönlendirme sunucusu
 app/db.py         veritabanı modelleri
 ```
 
-## Haberolog (@haberologbot) A/B modu
-Sunucuda ayrı çalışan Haberolog servisi (`/opt/haberolog`) varsa, @haberologbot'un panelinde **🔀 Mod** düğmesi çıkar.
+## Harici botlar (Haberolog, Seyahat Rehberi…) A/B modu
+Kendi servisi olan botların (`/opt/haberolog`, `/opt/seyahat` …) panelinde **🔀 Mod** düğmesi çıkar.
 - **A:** Haberolog otomatik sistemi botu yürütür; Merkez poll etmez ama aboneleri her dakika aktarır (buradan yayın yapılabilir).
 - **B:** Haberolog bekler, bot tamamen Merkez'den yürütülür.
 İletişim `/opt/haberolog/data` (konteynerde `/haberolog`) içindeki `MODE`, `users.json`, `from_merkezi.json` dosyalarıyla olur.
+Yeni harici bot eklemek: veri klasörünü docker-compose.yml'e bağla, `EXTERNAL_DIRS` listesine ekle; bot klasöre `BOT_ID` (id + kullanıcı adı) yazar.

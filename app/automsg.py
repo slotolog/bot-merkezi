@@ -181,9 +181,9 @@ async def send_next_promo(bot: Bot, user_id: int, extra_markup=None) -> bool:
 
 async def sync_commands(bot: Bot):
     """Botun '/' menüsünü günceller (promo varsa /promo da görünür)."""
-    from .haberolog import externally_run
+    from .external import externally_run
     if externally_run(bot.id):
-        return  # Haberolog kendi komut listesini yönetiyor
+        return  # bot kendi komut listesini yönetiyor (A modu)
     cmds = [BotCommand(command="start", description="Başlat")]
     if await promo_on(bot.id) and await list_items(bot.id, "promo", only_enabled=True):
         cmds.append(BotCommand(command="promo", description="Güncel promo"))
