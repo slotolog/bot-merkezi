@@ -93,8 +93,12 @@ U
 systemctl daemon-reload
 systemctl enable --now botmerkezi-update.timer botmerkezi-backup.timer >/dev/null
 
-sleep 8
-if curl -fs http://127.0.0.1:8080/health >/dev/null; then
+OK=0
+for _ in $(seq 1 24); do
+  sleep 5
+  curl -fs http://127.0.0.1:8080/health >/dev/null && { OK=1; break; }
+done
+if [ "$OK" = 1 ]; then
   source <(grep -E '^(ADMIN_BOT_TOKEN|ADMIN_IDS)=' .env)
   for id in ${ADMIN_IDS//,/ }; do
     curl -s "https://api.telegram.org/bot${ADMIN_BOT_TOKEN}/sendMessage" -d chat_id="$id" \
