@@ -161,6 +161,36 @@ class ChannelLog(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
+class SlotPost(Base):
+    """Slotolog Post Oluşturucu: görsel + başlık + açılır detay + butonlar (tek kanal)."""
+    __tablename__ = "slot_posts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    channel_id: Mapped[int] = mapped_column(BigInteger)
+    media_msg: Mapped[int | None] = mapped_column(Integer, nullable=True)  # depo kanalındaki görsel
+    media_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    title: Mapped[str] = mapped_column(String(4096), default="")  # HTML
+    details: Mapped[str | None] = mapped_column(String(4096), nullable=True)  # HTML
+    buttons: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    above: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
+    pin: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
+    silent: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
+    status: Mapped[str] = mapped_column(String(12), default="scheduled")  # scheduled/sending/sent/failed/cancelled/deleted
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SlotButtonSet(Base):
+    """Slotolog postları için hazır buton setleri."""
+    __tablename__ = "slot_button_sets"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64))
+    rows: Mapped[list] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Setting(Base):
     __tablename__ = "settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)

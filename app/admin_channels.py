@@ -256,6 +256,9 @@ async def channels_screen():
         rows.append([(f"{st} {ch.title}"[:40], f"chct:{ch.id}"), ("🗑", f"chcx:{ch.id}")])
     if not chans:
         lines.append("<i>Henüz kanal yok.</i>")
+    from .poster import poster_channel_id
+    if await poster_channel_id():
+        lines += ["", "🎰 Slotolog kanalı bu akışa dahil değil, <b>🎰 Slotolog Post</b> menüsünden yönetilir."]
     lines += ["", "<b>Kanal eklemek için:</b> Bağlı botlarından birini kanala <b>admin</b> yap "
                   "(\"Mesaj gönderme\" yetkisi açık). Sistem otomatik tanır.",
               "Bot zaten kanalda admin ise ➕ ile kanalın kullanıcı adını yaz veya kanaldan bir postu ilet.",

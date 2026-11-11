@@ -157,11 +157,18 @@ async def feed_posts(only_enabled=True) -> list[tuple[FeedPost, LibItem]]:
         return list((await s.execute(q.order_by(FeedPost.position, FeedPost.id))).all())
 
 
-async def channels(only_enabled=True) -> list[Channel]:
+async def channels(only_enabled=True, include_reserved=False) -> list[Channel]:
+    """include_reserved=False: Slotolog Post'a ayrılmış kanal genel akışa/paylaşıma dahil edilmez."""
+    reserved = 0
+    if not include_reserved:
+        from .poster import poster_channel_id
+        reserved = await poster_channel_id()
     async with Session() as s:
         q = select(Channel)
         if only_enabled:
             q = q.where(Channel.enabled.is_(True))
+        if reserved:
+            q = q.where(Channel.id != reserved)
         return list((await s.scalars(q.order_by(Channel.added_at))).all())
 
 

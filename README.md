@@ -108,3 +108,25 @@ Kendi servisi olan botların (`/opt/haberolog`, `/opt/seyahat` …) panelinde **
 - **B:** Haberolog bekler, bot tamamen Merkez'den yürütülür.
 İletişim `/opt/haberolog/data` (konteynerde `/haberolog`) içindeki `MODE`, `users.json`, `from_merkezi.json` dosyalarıyla olur.
 Yeni harici bot eklemek: veri klasörünü docker-compose.yml'e bağla, `EXTERNAL_DIRS` listesine ekle; bot klasöre `BOT_ID` (id + kullanıcı adı) yazar.
+
+## 🎰 Slotolog Post (tek kanala promosyon kartı)
+Görsel + kalın başlık + açılır **DETAYLAR** kutusu + renkli butonlardan oluşan postlar. Sadece Slotolog kanalına gider, genel Kanal Paylaşımları akışı bu kanala dokunmaz.
+
+**Kurulum (bir kere):**
+1. @slotolog_bot'u ➕ Bot Ekle ile bağla.
+2. Botu Slotolog kanalına **admin** yap (mesaj gönderme, düzenleme, silme). Depo kanalında da admin olsun.
+3. 🎰 Slotolog Post → ⚙️ Ayarlar → kanalı seç.
+4. 🔗 Giriş linki → güncel giriş adresini yaz.
+5. 🔘 Buton setleri → ➕ Yeni set (ilk satır ad, altı butonlar):
+   ```
+   Standart
+   🔴 🤖 ETKİNLİK BOTU - https://t.me/slotolog_bot | 🔴 💬 SOHBET GRUBU - https://t.me/grup
+   🔴 🔗 GÜNCEL GİRİŞ - {giris}
+   ```
+
+**Post hazırlama:** ✍️ Yeni post → görsel → başlık → detaylar → buton seti → önizleme → 🚀 Şimdi paylaş veya ⏰ Zamanla.
+- Görselin altına yazı eklersen başlık olarak alınır.
+- Premium emojiler korunur. Kanalda görünmeleri için botun Fragment kullanıcı adı olmalı.
+- Görselli postta yazı sınırı 1024 karakter (Telegram sınırı).
+- Giriş linki değişince 🔗 Giriş linki → "Eski postları da güncelle" ile `{giris}` butonlu tüm postlar anında yeni linke geçer.
+- 📑 Son postlar: önizle, kopyalayıp tekrar kullan, butonları değiştir, kanaldan sil.

@@ -75,6 +75,7 @@ HOME = kb([("🤖 Botlarım", "bots"), ("➕ Bot Ekle", "addbot")],
           [("📢 Yayın Yap", "bc:new"), ("📊 Analiz", "stats")],
           [("🎁 Promolar", "lib"), ("📨 Otomatik Mesajlar", "autoall")],
           [("📢 Kanal Paylaşımları", "ch"), ("📑 Yayın Raporları", "reports")],
+          [("🎰 Slotolog Post", "sp")],
           [("🖥 Sistem durumu", "sys")])
 BACK_HOME = [("🏠 Ana menü", "home")]
 
