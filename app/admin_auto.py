@@ -161,7 +161,8 @@ async def on_lib_buttons(m: Message, state: FSMContext, bot: Bot, manager: BotMa
     all_ids = [b.id for b in await _bots()]
     await state.set_state(LibSt.targets)
     await state.update_data(lib_id=lib_id, mode="promo", sel=all_ids)
-    await m.answer(*(await targets_screen(lib_id, "promo", all_ids)))
+    text, markup = await targets_screen(lib_id, "promo", all_ids)
+    await m.answer(text, reply_markup=markup)
 
 
 # --- bot seçimi (çoklu) ---

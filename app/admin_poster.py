@@ -12,7 +12,7 @@ from .admin import BACK_HOME, NO_STORAGE, kb, parse_when, show, storage_ok
 from .config import ADMIN_IDS, TZ
 from .db import Channel, ManagedBot, Session, SlotButtonSet, SlotPost, aware
 from .manager import BotManager
-from .poster import (GIRIS, MEDIA_KINDS, check_length, rich_from_message, deliver, details_label, giris_post_count, giris_url,
+from .poster import (GIRIS, MEDIA_KINDS, check_length, rich_from_message, rich_has_media, deliver, details_label, giris_post_count, giris_url,
                      parse_post_buttons, post_buttons_text, post_dict, poster_channel_id, publish,
                      refresh_buttons, resolve_buttons, set_setting, uses_giris)
 from .settings import storage_id
@@ -455,7 +455,7 @@ async def confirm_screen(state: FSMContext):
     warn = check_length(p, label)
     giris_warn = uses_giris(p.get("buttons")) and not await giris_url()
     lines = ["🎰 <b>Post hazır</b>", "",
-             f"🖼 Görsel: {KIND_NAME.get(p.get('media_kind'), 'yok')}",
+             f"🖼 Görsel: {KIND_NAME.get(p.get('media_kind')) or ('mesajın içinde' if rich_has_media(p.get('rich')) else 'yok')}",
              f"📝 Başlık: {html.escape(short(post_title(p.get('title', ''), p.get('rich')), 50))}",
              f"📋 Detay: {'📊 zengin mesaj (tablo vb.)' if p.get('rich') else 'var' if p.get('details') else 'yok'}",
              f"🔘 Buton: {sum(len(r) for r in p.get('buttons') or [])}"]
@@ -490,7 +490,8 @@ async def to_confirm(m: Message, state: FSMContext, preview=True):
         err = await send_preview(m.bot, m.chat.id, data["p"], RUNTIME.get("manager"))
         if err:
             await m.answer(f"⚠️ Önizleme gönderilemedi: {html.escape(err[:300])}")
-    await m.answer(*(await confirm_screen(state)))
+    text, markup = await confirm_screen(state)
+    await m.answer(text, reply_markup=markup)
 
 
 @router.callback_query(Sp.confirm, F.data == "spprev")
