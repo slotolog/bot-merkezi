@@ -170,6 +170,8 @@ class SlotPost(Base):
     media_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
     title: Mapped[str] = mapped_column(String(4096), default="")  # HTML
     details: Mapped[str | None] = mapped_column(String(4096), nullable=True)  # HTML
+    # Zengin mesaj (tablo vb.): {"blocks": [...], "summary": "..."}; görseller {"_store": depo msg id}
+    rich: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     buttons: Mapped[list | None] = mapped_column(JSON, nullable=True)
     above: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
     pin: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)

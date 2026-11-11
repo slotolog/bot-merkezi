@@ -126,6 +126,7 @@ Görsel + kalın başlık + açılır **DETAYLAR** kutusu + renkli butonlardan o
 
 **Post hazırlama:** ✍️ Yeni post → görsel → başlık → detaylar → buton seti → önizleme → 🚀 Şimdi paylaş veya ⏰ Zamanla.
 - Görselin altına yazı eklersen başlık olarak alınır.
+- **Tablolu / zengin mesaj:** Telegram'da tablo, başlık ve GIF içeren mesajı hazırlayıp 1. adımda gönder. Mesaj olduğu gibi alınır, sadece butonlar sorulur ve hepsi tek post olarak gider. Detay adımında da zengin mesaj gönderebilirsin; o zaman yazdığın başlığın altına eklenir.
 - Premium emojiler korunur. Kanalda görünmeleri için botun Fragment kullanıcı adı olmalı.
 - Görselli postta yazı sınırı 1024 karakter (Telegram sınırı).
 - Giriş linki değişince 🔗 Giriş linki → "Eski postları da güncelle" ile `{giris}` butonlu tüm postlar anında yeni linke geçer.

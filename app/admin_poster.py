@@ -12,7 +12,7 @@ from .admin import BACK_HOME, NO_STORAGE, kb, parse_when, show, storage_ok
 from .config import ADMIN_IDS, TZ
 from .db import Channel, ManagedBot, Session, SlotButtonSet, SlotPost, aware
 from .manager import BotManager
-from .poster import (GIRIS, check_length, deliver, details_label, giris_post_count, giris_url,
+from .poster import (GIRIS, MEDIA_KINDS, check_length, rich_from_message, deliver, details_label, giris_post_count, giris_url,
                      parse_post_buttons, post_buttons_text, post_dict, poster_channel_id, publish,
                      refresh_buttons, resolve_buttons, set_setting, uses_giris)
 from .settings import storage_id
@@ -21,7 +21,9 @@ router = Router()
 router.message.filter(F.from_user.id.in_(ADMIN_IDS))
 router.callback_query.filter(F.from_user.id.in_(ADMIN_IDS))
 
-KIND_NAME = {"photo": "🖼 Foto", "video": "🎬 Video", "animation": "🎞 GIF"}
+KIND_NAME = {"photo": "🖼 Foto", "video": "🎬 Video", "animation": "🎞 GIF", "document": "📎 Dosya"}
+RICH_TIP = ("\n\n📊 Tablolu / başlıklı <b>zengin mesaj</b> da gönderebilirsin; olduğu gibi alınır "
+            "(başlık + tablo + görsel + butonlar tek post olur).")
 STATUS = {"scheduled": "⏰", "sending": "⏳", "sent": "✅", "failed": "❌", "cancelled": "🚫", "deleted": "🗑"}
 BTN_HELP = (
     "Her satır bir buton sırası, <code>|</code> ile yan yana:\n\n"
@@ -49,6 +51,18 @@ class Sp(StatesGroup):
 
 def fmt_dt(dt) -> str:
     return aware(dt).astimezone(TZ).strftime("%d.%m %H:%M") if dt else "—"
+
+
+def post_title(title: str, rich: dict | None) -> str:
+    return title or ("📊 " + (rich or {}).get("summary", "") if rich else "")
+
+
+async def take_rich(m: Message) -> dict | None:
+    try:
+        return await rich_from_message(m.bot, m.rich_message)
+    except Exception as e:
+        await m.answer(f"❌ Zengin mesaj alınamadı: {html.escape(str(e)[:300])}")
+        return None
 
 
 def short(text: str, n=32) -> str:
@@ -252,7 +266,7 @@ async def ask_media(target, state: FSMContext):
     await state.set_state(Sp.media)
     await show(target, "🖼 <b>1/4 Görsel</b>\n\nPostun görselini gönder (foto, video veya GIF).\n"
                        "Görselin altına yazı eklersen <b>başlık</b> olarak alınır.\n"
-                       "Görselsiz post için <code>-</code>\n\nİptal: /iptal")
+                       "Görselsiz post için <code>-</code>" + RICH_TIP + "\n\nİptal: /iptal")
 
 
 @router.callback_query(F.data == "spnew")
@@ -272,10 +286,30 @@ async def cb_new(c: CallbackQuery, state: FSMContext):
 async def on_media(m: Message, state: FSMContext):
     data = await state.get_data()
     p = data["p"]
-    if m.text and m.text.strip() == "-":
+    if m.rich_message:
+        rich = await take_rich(m)
+        if rich is None:
+            return
+        if rich["summary"]:
+            # yazılı zengin mesaj: postun tüm metni bu (görsel varsa içinde)
+            p.update(rich=rich, title="", details=None, media_msg=None, media_kind=None)
+            await state.update_data(p=p)
+            if data.get("editing"):
+                await to_confirm(m, state)
+            else:
+                await ask_buttons(m, state)
+            return
+        media = [b for b in rich["blocks"] if isinstance(b, dict) and "_store" in b]
+        if not media:
+            await m.answer("❌ Bu mesajda görsel bulamadım. Foto, video veya GIF gönder.")
+            return
+        p["media_msg"], p["media_kind"] = media[0]["_store"], media[0]["type"]
+    elif m.text and m.text.strip() == "-":
         p["media_msg"], p["media_kind"] = None, None
     else:
         kind = "photo" if m.photo else "video" if m.video else "animation" if m.animation else None
+        if not kind and m.document and (m.document.mime_type or "").startswith(("image/", "video/")):
+            kind = "document"
         if not kind or m.media_group_id:
             await m.answer("❌ Tek bir foto, video veya GIF gönder (albüm olmaz). Görselsiz için <code>-</code>")
             return
@@ -299,13 +333,25 @@ async def on_media(m: Message, state: FSMContext):
 async def ask_title(target, state: FSMContext):
     await state.set_state(Sp.title)
     await show(target, "📝 <b>2/4 Başlık</b>\n\nBaşlığı yaz. Örnek:\n<code>🌙 GECE YATIRIMLARINA ÖZEL 2X ÇARK HAKKI! 🎡</code>\n\n"
-                       "Biçim vermezsen otomatik <b>kalın</b> olur. Kalın/italik ve premium emoji kullanabilirsin.")
+                       "Biçim vermezsen otomatik <b>kalın</b> olur. Kalın/italik ve premium emoji kullanabilirsin."
+               + RICH_TIP)
 
 
-@router.message(Sp.title, F.text)
+@router.message(Sp.title, F.text | F.rich_message)
 async def on_title(m: Message, state: FSMContext):
     data = await state.get_data()
     p = data["p"]
+    if m.rich_message:
+        rich = await take_rich(m)
+        if rich is None:
+            return
+        p.update(rich=rich, title="", details=None)
+        await state.update_data(p=p)
+        if data.get("editing"):
+            await to_confirm(m, state)
+        else:
+            await ask_buttons(m, state)
+        return
     p["title"] = m.html_text if m.entities else f"<b>{m.html_text}</b>"
     await state.update_data(p=p)
     if data.get("editing"):
@@ -318,14 +364,22 @@ async def ask_details(target, state: FSMContext):
     await state.set_state(Sp.details)
     label = await details_label()
     await show(target, f"📋 <b>3/4 Detaylar</b>\n\nKampanya detaylarını yaz. Postta <b>{html.escape(label) or 'açılır kutu'}</b> "
-                       "olarak kapalı durur, tıklayınca açılır.\n\nDetay istemiyorsan <code>-</code>")
+                       "olarak kapalı durur, tıklayınca açılır.\n\nDetay istemiyorsan <code>-</code>"
+               + "\n\n📊 Tablo gerekiyorsa detayı <b>zengin mesaj</b> olarak gönder; başlığın üstüne eklenir.")
 
 
-@router.message(Sp.details, F.text)
+@router.message(Sp.details, F.text | F.rich_message)
 async def on_details(m: Message, state: FSMContext):
     data = await state.get_data()
     p = data["p"]
-    p["details"] = None if m.text.strip() == "-" else m.html_text
+    if m.rich_message:
+        rich = await take_rich(m)
+        if rich is None:
+            return
+        p["rich"], p["details"] = rich, None
+    else:
+        p["details"] = None if m.text.strip() == "-" else m.html_text
+        p["rich"] = None
     await state.update_data(p=p)
     if data.get("editing"):
         await to_confirm(m, state)
@@ -402,8 +456,8 @@ async def confirm_screen(state: FSMContext):
     giris_warn = uses_giris(p.get("buttons")) and not await giris_url()
     lines = ["🎰 <b>Post hazır</b>", "",
              f"🖼 Görsel: {KIND_NAME.get(p.get('media_kind'), 'yok')}",
-             f"📝 Başlık: {html.escape(short(p.get('title', ''), 50))}",
-             f"📋 Detay: {'var' if p.get('details') else 'yok'}",
+             f"📝 Başlık: {html.escape(short(post_title(p.get('title', ''), p.get('rich')), 50))}",
+             f"📋 Detay: {'📊 zengin mesaj (tablo vb.)' if p.get('rich') else 'var' if p.get('details') else 'yok'}",
              f"🔘 Buton: {sum(len(r) for r in p.get('buttons') or [])}"]
     if warn:
         lines += ["", warn]
@@ -417,7 +471,7 @@ async def confirm_screen(state: FSMContext):
     rows += [[("👁 Önizle", "spprev")],
              [("🖼 Görsel", "spe:media"), ("📝 Başlık", "spe:title")],
              [("📋 Detay", "spe:details"), ("🔘 Butonlar", "spe:buttons")]]
-    if p.get("media_msg"):
+    if p.get("media_msg") and p.get("media_kind") in MEDIA_KINDS:
         rows.append([("⬆️ Yazı görselin üstünde" if p.get("above", True) else "⬇️ Yazı görselin altında", "spt:above")])
     rows.append([(f"📌 Sabitle: {'Açık' if p.get('pin') else 'Kapalı'}", "spt:pin"),
                  (f"🔕 Sessiz: {'Açık' if p.get('silent') else 'Kapalı'}", "spt:silent")])
@@ -490,7 +544,8 @@ async def _save_post(state: FSMContext, when: datetime | None) -> int:
     p = data["p"]
     async with Session() as s:
         sp = SlotPost(channel_id=await poster_channel_id(), media_msg=p.get("media_msg"), media_kind=p.get("media_kind"),
-                      title=p.get("title", ""), details=p.get("details"), buttons=p.get("buttons") or [],
+                      title=p.get("title", ""), details=p.get("details"), rich=p.get("rich"),
+                      buttons=p.get("buttons") or [],
                       above=p.get("above", True), pin=p.get("pin", False), silent=p.get("silent", False),
                       status="scheduled",
                       scheduled_at=when.astimezone(timezone.utc) if when else None)
@@ -554,7 +609,7 @@ async def cb_list(c: CallbackQuery, state: FSMContext):
     rows = []
     for sp in posts:
         when = fmt_dt(sp.scheduled_at if sched else (sp.sent_at or sp.created_at))
-        rows.append([(f"{STATUS.get(sp.status, '')} #{sp.id} {when} {short(sp.title, 22)}"[:60], f"spv:{sp.id}")])
+        rows.append([(f"{STATUS.get(sp.status, '')} #{sp.id} {when} {short(post_title(sp.title, sp.rich), 22)}"[:60], f"spv:{sp.id}")])
     if not posts:
         title += "\n\n<i>Liste boş.</i>"
     rows.append(BACK_SP)
@@ -567,7 +622,7 @@ async def post_view(pid: int):
     if not sp:
         return "Post bulunamadı.", kb(BACK_SP)
     lines = [f"🎰 <b>Post #{sp.id}</b> {STATUS.get(sp.status, '')}", "",
-             f"📝 {html.escape(short(sp.title, 60))}",
+             f"📝 {html.escape(short(post_title(sp.title, sp.rich), 60))}",
              f"🖼 {KIND_NAME.get(sp.media_kind, 'Görselsiz')} • 🔘 {sum(len(r) for r in sp.buttons or [])} buton"]
     if sp.status == "scheduled":
         lines.append(f"⏰ Paylaşım: {fmt_dt(sp.scheduled_at)}")
