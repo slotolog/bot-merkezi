@@ -113,7 +113,7 @@ Yeni harici bot eklemek: veri klasörünü docker-compose.yml'e bağla, `EXTERNA
 Görsel + kalın başlık + açılır **DETAYLAR** kutusu + renkli butonlardan oluşan postlar. Sadece Slotolog kanalına gider, genel Kanal Paylaşımları akışı bu kanala dokunmaz.
 
 **Kurulum (bir kere):**
-1. @slotolog_bot'u ➕ Bot Ekle ile bağla.
+1. @slotologpostbot'u ➕ Bot Ekle ile bağla.
 2. Botu Slotolog kanalına **admin** yap (mesaj gönderme, düzenleme, silme). Depo kanalında da admin olsun.
 3. 🎰 Slotolog Post → ⚙️ Ayarlar → kanalı seç.
 4. 🔗 Giriş linki → güncel giriş adresini yaz.

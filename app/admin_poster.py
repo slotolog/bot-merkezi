@@ -105,7 +105,7 @@ async def cb_cfg(c: CallbackQuery, state: FSMContext):
         rows.append([(f"{mark} {ch.title} — @{names.get(ch.bot_id, '?')}"[:60], f"spch:{ch.id}")])
     if not chans:
         lines.append("<i>Kayıtlı kanal yok.</i>")
-    lines += ["", "Listede yoksa: @slotolog_bot'u önce ➕ Bot Ekle ile bağla, sonra Slotolog kanalına "
+    lines += ["", "Listede yoksa: @slotologpostbot'u önce ➕ Bot Ekle ile bağla, sonra Slotolog kanalına "
                   "<b>admin</b> yap (mesaj gönderme + düzenleme + silme yetkisi). Kanal otomatik görünür.",
               "Bot ayrıca depo kanalında da admin olmalı.", "",
               "Seçilen kanal genel <b>Kanal Paylaşımları</b> akışından çıkarılır; oraya sadece bu menüden post gider."]
