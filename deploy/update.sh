@@ -7,9 +7,9 @@ exec 9>/tmp/botmerkezi-update.lock
 flock -n 9 || exit 0
 
 notify() {
-  source <(grep -E '^(ADMIN_BOT_TOKEN|ADMIN_IDS)=' .env)
+  source <(grep -E '^(ADMIN_BOT_TOKEN|ADMIN_IDS|TELEGRAM_API)=' .env)
   for id in ${ADMIN_IDS//,/ }; do
-    curl -s "https://api.telegram.org/bot${ADMIN_BOT_TOKEN}/sendMessage" -d chat_id="$id" \
+    curl -s "${TELEGRAM_API:-https://api.telegram.org}/bot${ADMIN_BOT_TOKEN}/sendMessage" -d chat_id="$id" \
       --data-urlencode text="$1" >/dev/null || true
   done
 }

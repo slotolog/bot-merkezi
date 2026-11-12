@@ -6,6 +6,7 @@ from aiogram import Bot, Dispatcher
 
 from .child import make_child_router
 from .db import ManagedBot, all_bots
+from .tg import make_bot, wait_online
 
 log = logging.getLogger(__name__)
 UPDATES = ["message", "callback_query", "my_chat_member"]
@@ -19,7 +20,7 @@ class BotManager:
 
     async def load_all(self):
         for mb in await all_bots():
-            self.bots[mb.id] = Bot(mb.token)
+            self.bots[mb.id] = make_bot(mb.token)
             if mb.enabled:
                 await self.start_polling(mb)
 
@@ -31,14 +32,16 @@ class BotManager:
         if d and mode(d) == "A":
             log.info("@%s A modunda: polling kendi servisinde.", mb.username)
             return
-        bot = self.bots.get(mb.id) or Bot(mb.token)
+        bot = self.bots.get(mb.id) or make_bot(mb.token)
         self.bots[mb.id] = bot
         dp = Dispatcher()
         dp.include_router(make_child_router())
         self.dps[mb.id] = dp
-        self.tasks[mb.id] = asyncio.create_task(
-            dp.start_polling(bot, handle_signals=False, close_bot_session=False, allowed_updates=UPDATES),
-            name=f"bot-{mb.username}")
+        async def run():
+            await wait_online(bot, f"@{mb.username}")
+            await dp.start_polling(bot, handle_signals=False, close_bot_session=False, allowed_updates=UPDATES)
+
+        self.tasks[mb.id] = asyncio.create_task(run(), name=f"bot-{mb.username}")
         log.info("Bot başlatıldı: @%s", mb.username)
         from .automsg import sync_commands
         asyncio.create_task(sync_commands(bot))

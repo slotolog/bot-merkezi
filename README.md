@@ -131,3 +131,8 @@ Görsel + kalın başlık + açılır **DETAYLAR** kutusu + renkli butonlardan o
 - Görselli postta yazı sınırı 1024 karakter (Telegram sınırı).
 - Giriş linki değişince 🔗 Giriş linki → "Eski postları da güncelle" ile `{giris}` butonlu tüm postlar anında yeni linke geçer.
 - 📑 Son postlar: önizle, kopyalayıp tekrar kullan, butonları değiştir, kanaldan sil.
+
+## Telegram'a ulaşılamazsa (TELEGRAM_API)
+Sunucu api.telegram.org'a bağlanamıyorsa Cloudflare Worker aracı kullanılır. `.env`'e
+`TELEGRAM_API=https://tg-proxy.<hesap>.workers.dev` eklenip `docker compose up -d --force-recreate app` çalıştırılır.
+Boş bırakılırsa doğrudan api.telegram.org kullanılır. Bağlantı yokken sistem çökmez, 5–60 sn aralıkla tekrar dener.

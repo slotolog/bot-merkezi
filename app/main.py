@@ -26,6 +26,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("botmerkezi")
 
 
+from .tg import make_bot, wait_online
+
+
 async def main():
     if not ADMIN_BOT_TOKEN or not ADMIN_IDS:
         sys.exit("ADMIN_BOT_TOKEN ve ADMIN_IDS .env içinde ayarlanmalı.")
@@ -33,7 +36,7 @@ async def main():
     await load_settings()
     if not storage_id():
         log.warning("Depo kanalı ayarlı değil: kanala /depo yazılınca ayarlanır.")
-    admin_bot = Bot(ADMIN_BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+    admin_bot = make_bot(ADMIN_BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
     RUNTIME["admin_bot"] = admin_bot
     manager = BotManager()
     RUNTIME["manager"] = manager
@@ -47,10 +50,14 @@ async def main():
     dp.include_router(poster_router)
     dp.include_router(channel_router)
 
-    await admin_bot.set_my_commands([BotCommand(command="menu", description="Ana menü"),
-                                     BotCommand(command="durum", description="Sistem durumu"),
-                                     BotCommand(command="iptal", description="İşlemi iptal et")])
     web_runner = await start_web()
+    await wait_online(admin_bot, "Yönetici bot")
+    try:
+        await admin_bot.set_my_commands([BotCommand(command="menu", description="Ana menü"),
+                                         BotCommand(command="durum", description="Sistem durumu"),
+                                         BotCommand(command="iptal", description="İşlemi iptal et")])
+    except Exception as e:
+        log.warning("Komut menüsü ayarlanamadı: %s", e)
     if not PUBLIC_URL:
         log.warning("PUBLIC_URL boş: buton tıklama takibi kapalı.")
     sched = asyncio.create_task(runner.scheduler_loop())

@@ -15,6 +15,7 @@ from aiogram.types import (BufferedInputFile, CallbackQuery, InlineKeyboardButto
                            InlineKeyboardMarkup, Message, ReplyKeyboardRemove)
 from sqlalchemy import delete, select
 
+from .tg import make_bot
 from .broadcast import BroadcastRunner, active_user_ids, fmt
 from .config import ADMIN_IDS, PUBLIC_URL, TZ
 from .settings import set_storage, storage_id
@@ -150,7 +151,7 @@ async def on_token(m: Message, state: FSMContext, manager: BotManager):
         await m.delete()  # token sohbette kalmasın
     except Exception:
         pass
-    test = Bot(token)
+    test = make_bot(token)
     try:
         me = await test.get_me()
     except Exception:
@@ -174,7 +175,7 @@ async def on_token(m: Message, state: FSMContext, manager: BotManager):
             s.add(row)
         await s.commit()
     await manager.remove(me.id)
-    manager.bots[me.id] = Bot(token)
+    manager.bots[me.id] = make_bot(token)
     await manager.start_polling(row)
     await state.clear()
     await m.answer(f"✅ @{html.escape(me.username)} bağlandı ve çalışıyor.{warn}",
