@@ -16,6 +16,7 @@ from .settings import RUNTIME, load as load_settings, storage_id
 from .db import init_db
 from .automsg import AutoWorker
 from .channels import FeedRunner
+from .doctor import install as install_doctor, monitor_loop
 from .health import alert_loop
 from .manager import BotManager
 from .external import ExternalSync
@@ -30,6 +31,7 @@ from .tg import make_bot, wait_online
 
 
 async def main():
+    install_doctor()
     if not ADMIN_BOT_TOKEN or not ADMIN_IDS:
         sys.exit("ADMIN_BOT_TOKEN ve ADMIN_IDS .env içinde ayarlanmalı.")
     await init_db()
@@ -64,6 +66,7 @@ async def main():
     auto_task = asyncio.create_task(AutoWorker(manager).loop())
     feed_task = asyncio.create_task(FeedRunner(manager).loop())
     health_task = asyncio.create_task(alert_loop())
+    doctor_task = asyncio.create_task(monitor_loop(manager))
     hb_task = asyncio.create_task(ExternalSync(manager).loop())
     poster_task = asyncio.create_task(PosterRunner(manager).loop())
     log.info("Yönetici bot çalışıyor. Bağlı bot sayısı: %d", len(manager.bots))
@@ -74,6 +77,7 @@ async def main():
         auto_task.cancel()
         feed_task.cancel()
         health_task.cancel()
+        doctor_task.cancel()
         hb_task.cancel()
         poster_task.cancel()
         await web_runner.cleanup()

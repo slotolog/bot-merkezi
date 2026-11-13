@@ -159,11 +159,18 @@ async def on_token(m: Message, state: FSMContext, manager: BotManager):
         await m.answer("❌ Token geçersiz. Tekrar gönder veya /iptal.")
         return
     warn = ""
+    try:
+        wh = await test.get_webhook_info()
+        if wh.url:
+            warn += ("\n\n⚠️ Bu botta başka bir sistemin <b>webhook</b>'u ayarlı. Bu sistem botu dinleyemez. "
+                     "Bot panelinde <b>🩺 Teşhis → 🔧 Webhook'u kaldır</b>'a bas.")
+    except Exception:
+        pass
     if storage_ok():
         try:
             await test.get_chat(storage_id())
         except Exception:
-            warn = ("\n\n⚠️ Bu bot depo kanalına erişemiyor. Medyalı yayın ve karşılama mesajı için "
+            warn += ("\n\n⚠️ Bu bot depo kanalına erişemiyor. Medyalı yayın ve karşılama mesajı için "
                     f"@{me.username} botunu depo kanalına <b>admin</b> olarak ekle.")
     await test.session.close()
     async with Session() as s:
@@ -220,7 +227,7 @@ async def bot_panel(bot_id: int):
         [("👋 Karşılama mesajı", f"bwel:{bot_id}"), ("📋 Alt menü", f"bmenu:{bot_id}")],
         [("📨 Otomatik zincir", f"itl:auto:{bot_id}"), ("🎁 /promo havuzu", f"itl:promo:{bot_id}")],
         [("💬 Menü yanıtları", f"bmr:{bot_id}"), ("🔄 Aktiflik kontrolü", f"bchk:{bot_id}")],
-        [("📥 Aboneleri indir (CSV)", f"bcsv:{bot_id}")],
+        [("📥 Aboneleri indir (CSV)", f"bcsv:{bot_id}"), ("🩺 Teşhis", f"bdoc:{bot_id}")],
         [("⏸ Durdur" if b.enabled else "▶️ Başlat", f"btog:{bot_id}"), ("🗑 Botu kaldır", f"bdel:{bot_id}")],
         [("⬅️ Botlarım", "bots")] + BACK_HOME,
     )
@@ -279,6 +286,38 @@ async def cb_bot(c: CallbackQuery, state: FSMContext):
     await state.clear()
     text, markup = await bot_panel(int(c.data.split(":")[1]))
     await show(c, text, markup)
+
+
+@router.callback_query(F.data.startswith(("bdoc:", "bdocwh:", "bdocrs:")))
+async def cb_doctor(c: CallbackQuery, manager: BotManager):
+    from .doctor import POLL_ERRORS, diagnose
+    action, bid = c.data.split(":")
+    bid = int(bid)
+    note = ""
+    if action == "bdocwh":
+        bot = manager.sender(bid)
+        try:
+            await bot.delete_webhook(drop_pending_updates=False)
+            note = "🔧 Webhook kaldırıldı.\n\n"
+        except Exception as e:
+            note = f"❌ Kaldırılamadı: {html.escape(str(e))}\n\n"
+    if action in ("bdocwh", "bdocrs"):
+        async with Session() as s:
+            b = await s.get(ManagedBot, bid)
+        await manager.stop_polling(bid)
+        POLL_ERRORS.pop(bid, None)
+        if b and b.enabled:
+            await manager.start_polling(b)
+        await asyncio.sleep(3)
+        note += "🔄 Bot yeniden başlatıldı.\n\n" if action == "bdocrs" else ""
+    await c.answer("Kontrol ediliyor…")
+    text, has_wh = await diagnose(manager, bid)
+    rows = []
+    if has_wh:
+        rows.append([("🔧 Webhook'u kaldır", f"bdocwh:{bid}")])
+    rows.append([("🔄 Yeniden başlat", f"bdocrs:{bid}"), ("🔁 Tekrar kontrol", f"bdoc:{bid}")])
+    rows.append([("⬅️ Bot paneli", f"bot:{bid}")])
+    await show(c, note + text, kb(*rows))
 
 
 @router.callback_query(F.data.startswith("bst:"))
