@@ -304,10 +304,10 @@ async def cb_doctor(c: CallbackQuery, manager: BotManager):
     if action in ("bdocwh", "bdocrs"):
         async with Session() as s:
             b = await s.get(ManagedBot, bid)
-        await manager.stop_polling(bid)
         POLL_ERRORS.pop(bid, None)
+        manager.crashes.pop(bid, None)
         if b and b.enabled:
-            await manager.start_polling(b)
+            await manager.restart(b)
         await asyncio.sleep(3)
         note += "🔄 Bot yeniden başlatıldı.\n\n" if action == "bdocrs" else ""
     await c.answer("Kontrol ediliyor…")

@@ -17,6 +17,7 @@ class BotManager:
         self.bots: dict[int, Bot] = {}        # gönderim için (hepsi)
         self.dps: dict[int, Dispatcher] = {}  # sadece polling yapan (aktif) botlar
         self.tasks: dict[int, asyncio.Task] = {}
+        self.crashes: dict[int, str] = {}  # bot_id -> son durma sebebi
 
     async def load_all(self):
         for mb in await all_bots():
@@ -41,10 +42,36 @@ class BotManager:
             await wait_online(bot, f"@{mb.username}")
             await dp.start_polling(bot, handle_signals=False, close_bot_session=False, allowed_updates=UPDATES)
 
-        self.tasks[mb.id] = asyncio.create_task(run(), name=f"bot-{mb.username}")
+        task = asyncio.create_task(run(), name=f"bot-{mb.username}")
+        task.add_done_callback(lambda t, bid=mb.id: self._on_done(bid, t))
+        self.tasks[mb.id] = task
         log.info("Bot başlatıldı: @%s", mb.username)
         from .automsg import sync_commands
         asyncio.create_task(sync_commands(bot))
+
+    def _on_done(self, bot_id: int, task: asyncio.Task):
+        if task.cancelled():
+            reason = "görev iptal edildi"
+        elif task.exception():
+            reason = f"{type(task.exception()).__name__}: {task.exception()}"
+        else:
+            reason = "dinleme beklenmedik şekilde sona erdi"
+        # stop_polling ile bilerek durdurulduysa dps'den önceden çıkarılmıştır
+        if self.tasks.get(bot_id) is task and bot_id in self.dps:
+            self.crashes[bot_id] = reason[:300]
+            log.error("Bot %s dinlemesi durdu: %s", bot_id, reason)
+
+    def is_healthy(self, bot_id: int) -> bool:
+        t = self.tasks.get(bot_id)
+        return bot_id in self.dps and t is not None and not t.done()
+
+    async def restart(self, mb: ManagedBot):
+        """Dinlemesi durmuş botu temizleyip yeniden başlatır."""
+        self.dps.pop(mb.id, None)
+        old = self.tasks.pop(mb.id, None)
+        if old and not old.done():
+            old.cancel()
+        await self.start_polling(mb)
 
     async def stop_polling(self, bot_id: int):
         dp = self.dps.pop(bot_id, None)

@@ -75,10 +75,18 @@ async def diagnose(manager, bot_id: int) -> tuple[str, bool]:
     if not b.enabled:
         lines.append("⏸ Bot panelden <b>durdurulmuş</b>. ▶️ Başlat ile aç.")
         ok = False
-    task = manager.tasks.get(bot_id)
-    running = manager.is_running(bot_id) and task is not None and not task.done()
-    lines.append(f"{'🟢' if running else '🔴'} Dinleme (polling): {'çalışıyor' if running else 'çalışmıyor'}")
-    ok &= running
+    from .external import ext_dir, label, mode as ext_mode
+    xd = ext_dir(b)
+    external_a = bool(xd) and ext_mode(xd) == "A"
+    if external_a:
+        lines.append(f"🅰️ A modu: botu <b>{label(xd)} servisi</b> çalıştırıyor, Merkez bilerek dinlemiyor.")
+    else:
+        running = manager.is_healthy(bot_id)
+        lines.append(f"{'🟢' if running else '🔴'} Dinleme (Merkez): "
+                     f"{'çalışıyor' if running else 'çalışmıyor → 🔄 Yeniden başlat'}")
+        if bot_id in manager.crashes:
+            lines.append(f"   ↳ Son durma sebebi: <code>{html.escape(manager.crashes[bot_id][:200])}</code>")
+        ok &= running
     bot = manager.sender(bot_id)
     has_webhook = False
     if bot:
@@ -97,6 +105,11 @@ async def diagnose(manager, bot_id: int) -> tuple[str, bool]:
                              "   Başka bir sistem bu botu çalıştırıyor/çalıştırmış. Kaldırınca bu sistem dinlemeye başlar.")
             if wh.pending_update_count:
                 lines.append(f"⏳ Bekleyen güncelleme: {wh.pending_update_count}")
+                if external_a and not wh.url:
+                    ok = False
+                    lines.append(f"🔴 <b>{label(xd)} servisi botu dinlemiyor</b> (mesajlar okunmadan bekliyor).\n"
+                                 "   Hızlı çözüm: bot panelinde <b>🔀 Mod → B</b> ile botu Merkez'e devret.\n"
+                                 f"   Kalıcı çözüm: sunucuda {label(xd)} servisinin yeniden başlatılması.")
         except Exception:
             pass
     err = POLL_ERRORS.get(bot_id)
@@ -109,12 +122,77 @@ async def diagnose(manager, bot_id: int) -> tuple[str, bool]:
     return "\n".join(lines), has_webhook
 
 
+_wd_alerted: dict[int, float] = {}
+
+
+async def watchdog(manager, notify):
+    """Merkez'de çalışması gereken ama dinlemesi durmuş botları yeniden başlatır (A modu hariç)."""
+    from .external import ext_dir, mode as ext_mode
+    async with Session() as s:
+        bots = (await s.scalars(select(ManagedBot).where(ManagedBot.enabled.is_(True)))).all()
+    for b in bots:
+        xd = ext_dir(b)
+        if (xd and ext_mode(xd) == "A") or manager.is_healthy(b.id):
+            continue
+        reason = manager.crashes.get(b.id, "dinleme görevi bulunamadı")
+        await manager.restart(b)
+        await asyncio.sleep(2)
+        ok = manager.is_healthy(b.id)
+        log.warning("Bekçi: @%s yeniden başlatıldı (%s) → %s", b.username, reason, ok)
+        if not ok and time.time() - _wd_alerted.get(b.id, 0) < 6 * 3600:
+            continue
+        _wd_alerted[b.id] = time.time()
+        await notify(f"{'🔄' if ok else '🔴'} <b>@{html.escape(b.username)}</b> durmuştu, "
+                     f"{'otomatik yeniden başlatıldı ✅' if ok else 'yeniden başlatılamadı ❌'}\n"
+                     f"Sebep: <code>{html.escape(reason[:200])}</code>")
+
+
+_ext_pending: dict[int, float] = {}
+
+
+async def external_check(manager, notify, alerted):
+    """A modundaki harici botlarda mesajlar 5 dk'dan uzun okunmadan bekliyorsa servis durmuştur."""
+    from .external import ext_dir, label, mode as ext_mode
+    async with Session() as s:
+        bots = (await s.scalars(select(ManagedBot))).all()
+    for b in bots:
+        xd = ext_dir(b)
+        bot = manager.sender(b.id)
+        if not xd or ext_mode(xd) != "A" or not bot:
+            _ext_pending.pop(b.id, None)
+            continue
+        try:
+            wh = await bot.get_webhook_info()
+        except Exception:
+            continue
+        if wh.url or not wh.pending_update_count:
+            _ext_pending.pop(b.id, None)
+            continue
+        first = _ext_pending.setdefault(b.id, time.time())
+        if time.time() - first > 300 and time.time() - alerted.get(-b.id, 0) > 6 * 3600:
+            alerted[-b.id] = time.time()
+            await notify(f"🔴 <b>@{html.escape(b.username)} cevap vermiyor</b>\n{label(xd)} servisi botu dinlemiyor "
+                         f"({wh.pending_update_count} mesaj okunmadan bekliyor).\n\n"
+                         "Hızlı çözüm: Botlarım → bot → <b>🔀 Mod → B</b> (Merkez devralır).")
+
+
 async def monitor_loop(manager):
-    """Polling hatası 3 dakikadan uzun sürerse yöneticiye bir kez (6 saatte bir) haber verir."""
+    """Her dakika: durmuş botları yeniden başlatır, harici servisleri ve polling hatalarını izler."""
     from .channels import notify_admins
     alerted: dict[int, float] = {}
+    tick = 0
     while True:
         await asyncio.sleep(60)
+        tick += 1
+        try:
+            await watchdog(manager, notify_admins)
+        except Exception:
+            log.exception("Bekçi hatası")
+        if tick % 2 == 0:
+            try:
+                await external_check(manager, notify_admins, alerted)
+            except Exception:
+                log.exception("Harici bot kontrol hatası")
         try:
             for bid, e in list(POLL_ERRORS.items()):
                 if time.time() - e["last"] > 300:  # artık hata gelmiyor
