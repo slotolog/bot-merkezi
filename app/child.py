@@ -77,6 +77,23 @@ def make_child_router() -> Router:
         await set_status(bot.id, m.from_user.id, "unsub")
         await m.answer("🔕 Bildirimler kapatıldı. Tekrar açmak için /start yazabilirsin.")
 
+    @r.message(F.chat.type == "private", F.text.startswith("/"))
+    async def on_custom_command(m: Message, bot: Bot):
+        """Yönetici botta tanımlanan özel komutlar (/giris, /destek …)."""
+        name = m.text.split()[0][1:].split("@")[0].lower()
+        row = await get_bot_row(bot.id)
+        cmd = next((c for c in ((row.commands if row else None) or []) if c["cmd"] == name), None)
+        if not cmd:
+            return
+        if cmd.get("action") == "promo":
+            if not await send_next_promo(bot, m.chat.id):
+                await m.answer("Şu an aktif bir promo yok. 🔔")
+            return
+        try:
+            await send_stored(bot, m.chat.id, cmd)
+        except Exception as e:
+            log.warning("Komut yanıtı gönderilemedi (/%s): %s", name, e)
+
     @r.my_chat_member(F.chat.type == "private")
     async def on_member(ev: ChatMemberUpdated, bot: Bot):
         st = ev.new_chat_member.status

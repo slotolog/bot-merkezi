@@ -37,6 +37,8 @@ class ManagedBot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     auto_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
     promo_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
+    # özel komutlar: [{"cmd","desc","msgs","buttons","btn_text"} veya {"cmd","desc","action":"promo"}]
+    commands: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
 
 class Subscriber(Base):

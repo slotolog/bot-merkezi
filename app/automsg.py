@@ -188,6 +188,10 @@ async def sync_commands(bot: Bot):
     if externally_run(bot.id):
         return  # bot kendi komut listesini yönetiyor (A modu)
     cmds = [BotCommand(command="start", description="Başlat")]
+    async with Session() as s:
+        b = await s.get(ManagedBot, bot.id)
+    for c in ((b.commands if b else None) or []):
+        cmds.append(BotCommand(command=c["cmd"], description=c["desc"][:256]))
     if await promo_on(bot.id) and await list_items(bot.id, "promo", only_enabled=True):
         cmds.append(BotCommand(command="promo", description="Güncel promo"))
     cmds.append(BotCommand(command="stop", description="Bildirimleri kapat"))

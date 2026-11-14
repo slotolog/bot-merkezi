@@ -9,6 +9,7 @@ from aiogram.types import BotCommand
 from .admin import channel_router, router as admin_router
 from .admin_auto import router as auto_router
 from .admin_channels import router as channels_router
+from .admin_cmds import router as cmds_router
 from .admin_poster import router as poster_router
 from .broadcast import BroadcastRunner
 from .config import ADMIN_BOT_TOKEN, ADMIN_IDS, PUBLIC_URL
@@ -49,6 +50,7 @@ async def main():
     dp.include_router(admin_router)
     dp.include_router(auto_router)
     dp.include_router(channels_router)
+    dp.include_router(cmds_router)
     dp.include_router(poster_router)
     dp.include_router(channel_router)
 
