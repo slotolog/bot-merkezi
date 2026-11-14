@@ -60,6 +60,10 @@ class MenuSt(StatesGroup):
     resp_buttons = State()
 
 
+class DescSt(StatesGroup):
+    text = State()
+
+
 class Bc(StatesGroup):
     select = State()
     msg = State()
@@ -228,6 +232,7 @@ async def bot_panel(bot_id: int):
         [("📨 Otomatik zincir", f"itl:auto:{bot_id}"), ("🎁 /promo havuzu", f"itl:promo:{bot_id}")],
         [("💬 Menü yanıtları", f"bmr:{bot_id}"), ("🔄 Aktiflik kontrolü", f"bchk:{bot_id}")],
         [("📥 Aboneleri indir (CSV)", f"bcsv:{bot_id}"), ("🩺 Teşhis", f"bdoc:{bot_id}")],
+        [("📝 Bot açıklaması", f"bdesc:{bot_id}")],
         [("⏸ Durdur" if b.enabled else "▶️ Başlat", f"btog:{bot_id}"), ("🗑 Botu kaldır", f"bdel:{bot_id}")],
         [("⬅️ Botlarım", "bots")] + BACK_HOME,
     )
@@ -318,6 +323,75 @@ async def cb_doctor(c: CallbackQuery, manager: BotManager):
     rows.append([("🔄 Yeniden başlat", f"bdocrs:{bid}"), ("🔁 Tekrar kontrol", f"bdoc:{bid}")])
     rows.append([("⬅️ Bot paneli", f"bot:{bid}")])
     await show(c, note + text, kb(*rows))
+
+
+# ---------------- bot açıklaması (Başlat öncesi kutu) ve About ----------------
+DESC_LIMITS = {"d": ("Açıklama", 512), "a": ("About (profil yazısı)", 120)}
+
+
+async def desc_screen(manager: BotManager, bid: int):
+    bot = manager.sender(bid)
+    async with Session() as s:
+        b = await s.get(ManagedBot, bid)
+    desc = about = ""
+    try:
+        desc = (await bot.get_my_description()).description
+        about = (await bot.get_my_short_description()).short_description
+    except Exception as e:
+        log.warning("Açıklama okunamadı: %s", e)
+    text = (f"📝 <b>@{html.escape(b.username)} — Bot açıklaması</b>\n\n"
+            "<b>Açıklama</b> (sohbet ilk açıldığında, BAŞLAT'tan önce görünen kutu):\n"
+            f"<blockquote>{html.escape(desc) or '<i>boş</i>'}</blockquote>\n"
+            "<b>About</b> (bot profilinde ve paylaşılan linkte görünen kısa yazı):\n"
+            f"<blockquote>{html.escape(about) or '<i>boş</i>'}</blockquote>\n"
+            "🖼 Kutudaki görsel/video sadece @BotFather → /mybots → Edit Bot → Edit Description Picture ile değişir.")
+    return text, kb([("✏️ Açıklamayı değiştir", f"bdset:d:{bid}"), ("✏️ About değiştir", f"bdset:a:{bid}")],
+                    [("⬅️ Bot paneli", f"bot:{bid}")])
+
+
+@router.callback_query(F.data.startswith("bdesc:"))
+async def cb_desc(c: CallbackQuery, state: FSMContext, manager: BotManager):
+    await state.clear()
+    await show(c, *(await desc_screen(manager, int(c.data.split(":")[1]))))
+
+
+@router.callback_query(F.data.startswith("bdset:"))
+async def cb_desc_set(c: CallbackQuery, state: FSMContext):
+    _, which, bid = c.data.split(":")
+    name, limit = DESC_LIMITS[which]
+    await state.set_state(DescSt.text)
+    await state.update_data(which=which, bot_id=int(bid))
+    await show(c, f"✏️ Yeni <b>{name}</b> metnini yaz (en fazla {limit} karakter, emoji kullanabilirsin).\n"
+                  "Boşaltmak için <code>-</code> yaz. İptal: /iptal")
+
+
+@router.message(DescSt.text, F.text)
+async def on_desc_text(m: Message, state: FSMContext, manager: BotManager):
+    data = await state.get_data()
+    name, limit = DESC_LIMITS[data["which"]]
+    text = "" if m.text.strip() == "-" else m.text.strip()
+    if len(text) > limit:
+        await m.answer(f"❌ {len(text)} karakter yazdın, en fazla {limit} olabilir. Kısaltıp tekrar gönder.")
+        return
+    bot = manager.sender(data["bot_id"])
+    try:
+        if data["which"] == "d":
+            await bot.set_my_description(description=text)
+        else:
+            await bot.set_my_short_description(short_description=text)
+    except Exception as e:
+        await m.answer(f"❌ Kaydedilemedi: {html.escape(str(e))}")
+        return
+    await state.clear()
+    from .external import ext_dir, mode as ext_mode
+    async with Session() as s:
+        xd = ext_dir(await s.get(ManagedBot, data["bot_id"]))
+    note = ("\n\n⚠️ Bu bot A modunda: harici servis açılışta kendi metnini yeniden yazarsa bu değişiklik ezilebilir."
+            if xd and ext_mode(xd) == "A" else "")
+    await m.answer(f"✅ {name} güncellendi. Yeni kullanıcılar hemen görür (eski sohbetlerde Telegram bir süre önbellekte tutabilir)."
+                   + note)
+    text_, markup = await desc_screen(manager, data["bot_id"])
+    await m.answer(text_, reply_markup=markup)
 
 
 @router.callback_query(F.data.startswith("bst:"))
