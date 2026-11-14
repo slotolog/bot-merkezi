@@ -370,7 +370,7 @@ async def list_screen(kind: str, bot_id: int):
     icon, name = NAMES[kind]
     on = _on(b.auto_enabled if kind == "auto" else b.promo_enabled)
     lines = [f"{icon} <b>@{html.escape(b.username)} — {name}</b>  [{'🟢 Açık' if on else '⏸ Kapalı'}]", ""]
-    lines.append("Yeni abone /start dediğinde sırayla gider." if kind == "auto"
+    lines.append("<b>Yeni</b> abone /start dediğinde sırayla gider (daha önce kayıtlı olanlara tekrar gitmez)." if kind == "auto"
                  else "Kullanıcı /promo yazınca veya menüdeki promo butonuna basınca sıradaki gider.")
     lines.append("")
     rows = []
@@ -385,6 +385,8 @@ async def list_screen(kind: str, bot_id: int):
         lines.append("<i>Henüz bir şey eklenmedi.</i>")
     rows.append([("➕ Kütüphaneden ekle", f"it+:{kind}:{bot_id}"),
                  ("⏸ Durdur" if on else "▶️ Başlat", f"tgb:{kind}:{bot_id}")])
+    if kind == "auto" and items:
+        rows.append([("🧪 Bana test et", f"itest:{bot_id}")])
     other = "promo" if kind == "auto" else "auto"
     rows.append([(f"{NAMES[other][0]} {NAMES[other][1]}", f"itl:{other}:{bot_id}"), ("📋 Tüm botlar", "autoall")])
     rows.append([("⬅️ Bot paneli", f"bot:{bot_id}")])
@@ -406,6 +408,42 @@ async def cb_toggle_bot(c: CallbackQuery, manager: BotManager):
     _, kind, bid = c.data.split(":")
     await _toggle_bot(int(bid), kind, manager)
     await show(c, *(await list_screen(kind, int(bid))))
+
+
+@router.callback_query(F.data.startswith("itest:"))
+async def cb_test_chain(c: CallbackQuery, manager: BotManager):
+    """Zinciri, gecikmeleri beklemeden yöneticiye o botun kendisinden gönderir."""
+    from .automsg import send_item
+    bid = int(c.data.split(":")[1])
+    bot = manager.sender(bid)
+    items = await list_items(bid, "auto", only_enabled=True)
+    async with Session() as s:
+        b = await s.get(ManagedBot, bid)
+    if not bot or not items:
+        await c.answer("Zincirde aktif mesaj yok.", show_alert=True)
+        return
+    await c.answer("Gönderiliyor…")
+    sent, errors = 0, []
+    for i, it in enumerate(items, 1):
+        try:
+            await bot.send_message(c.from_user.id, f"🧪 Test {i}/{len(items)} • normalde: {fmt_delay(it.delay_sec)}")
+            if await send_item(bot, c.from_user.id, it) is not None:
+                sent += 1
+            else:
+                errors.append(f"{i}. içerik kütüphanede kapalı")
+        except Exception as e:
+            err = str(e)
+            if "chat not found" in err.lower() or "forbidden" in err.lower():
+                await c.message.answer(f"❌ @{html.escape(b.username)} sana mesaj gönderemiyor. Önce o bota kendi "
+                                       "hesabından /start yaz, sonra tekrar dene.")
+                return
+            errors.append(f"{i}. {html.escape(err[:120])}")
+    txt = f"🧪 @{html.escape(b.username)} sohbetine {sent}/{len(items)} zincir mesajı gönderildi."
+    if errors:
+        txt += "\n⚠️ " + "\n⚠️ ".join(errors)
+    if b.auto_enabled is False:
+        txt += "\n\n⏸ Not: Bu botun zinciri şu an <b>kapalı</b>, yeni abonelere gitmiyor. Listeden ▶️ Başlat."
+    await c.message.answer(txt, reply_markup=kb([("⬅️ Zincire dön", f"itl:auto:{bid}")]))
 
 
 # --- bot ekranından kütüphaneden seç ---
