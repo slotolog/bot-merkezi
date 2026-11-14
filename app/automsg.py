@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, MenuButtonCommands
 from sqlalchemy import delete, select, update
 
 from .content import send_content
@@ -179,6 +179,9 @@ async def send_next_promo(bot: Bot, user_id: int, extra_markup=None) -> bool:
     return True
 
 
+COMMAND_LANGS = (None, "tr", "en", "de", "ru", "ar", "az", "fr", "es", "it", "uk")
+
+
 async def sync_commands(bot: Bot):
     """Botun '/' menüsünü günceller (promo varsa /promo da görünür)."""
     from .external import externally_run
@@ -188,7 +191,17 @@ async def sync_commands(bot: Bot):
     if await promo_on(bot.id) and await list_items(bot.id, "promo", only_enabled=True):
         cmds.append(BotCommand(command="promo", description="Güncel promo"))
     cmds.append(BotCommand(command="stop", description="Bildirimleri kapat"))
+    # Botun daha önceki sistemi (ör. harici servis) dil/kapsam bazlı liste yazmış olabilir;
+    # Telegram onları genel listeden önce gösterir. Önce temizle, sonra yaz.
+    for scope in (None, BotCommandScopeAllPrivateChats()):
+        for lang in COMMAND_LANGS:
+            try:
+                await bot.delete_my_commands(scope=scope, language_code=lang)
+            except Exception:
+                pass
     try:
         await bot.set_my_commands(cmds)
+        await bot.set_my_commands(cmds, scope=BotCommandScopeAllPrivateChats())
+        await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
     except Exception as e:
         log.warning("Komutlar ayarlanamadı: %s", e)
