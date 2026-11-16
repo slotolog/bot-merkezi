@@ -72,6 +72,7 @@ async def main():
     feed_task = asyncio.create_task(FeedRunner(manager).loop())
     health_task = asyncio.create_task(alert_loop())
     sched_task = asyncio.create_task(ScheduleRunner(runner).loop())
+    asyncio.create_task(runner.strip_unsub_buttons())
     doctor_task = asyncio.create_task(monitor_loop(manager))
     hb_task = asyncio.create_task(ExternalSync(manager).loop())
     poster_task = asyncio.create_task(PosterRunner(manager).loop())

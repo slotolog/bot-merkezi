@@ -202,6 +202,47 @@ class BroadcastRunner:
                 await s.commit()
         return ok, fail
 
+    # ---------- gönderilmiş mesajlardan 'Bildirimleri kapat' butonunu kaldır (tek seferlik) ----------
+    async def strip_unsub_buttons(self) -> tuple[int, int]:
+        from sqlalchemy import func as sfunc
+        from .db import Setting
+        async with Session() as s:
+            if await s.get(Setting, "unsub_strip_v1"):
+                return 0, 0
+            s.add(Setting(key="unsub_strip_v1", value="running"))
+            await s.commit()
+            bcs = (await s.scalars(select(Broadcast).where(Broadcast.unsub_btn.is_(True)))).all()
+            for bc in bcs:
+                bc.unsub_btn = False
+            await s.commit()
+        ok = fail = 0
+        for bc in bcs:
+            tracking = bool(PUBLIC_URL) and any(b.get("lid") for row in (bc.buttons or []) for b in row)
+            async with Session() as s:
+                # her kullanıcıdaki son mesaj = butonların olduğu mesaj (albümde altındaki buton mesajı)
+                rows = (await s.execute(select(Delivery.bot_id, Delivery.user_id, sfunc.max(Delivery.message_id))
+                                        .where(Delivery.broadcast_id == bc.id)
+                                        .group_by(Delivery.bot_id, Delivery.user_id))).all()
+            for bot_id, uid, mid in rows:
+                bot = self.manager.sender(bot_id)
+                if not bot:
+                    continue
+                markup = (build_markup(bc.buttons, url_fn=lambda b, u=uid, bi=bot_id: track_url(b["lid"], bi, u))
+                          if tracking else build_markup(bc.buttons))
+                res, _ = await _with_retry(lambda: bot.edit_message_reply_markup(
+                    chat_id=uid, message_id=mid, reply_markup=markup))
+                ok, fail = (ok + 1, fail) if res == "ok" else (ok, fail + 1)
+                await asyncio.sleep(1 / SEND_RATE)
+        async with Session() as s:
+            row = await s.get(Setting, "unsub_strip_v1")
+            row.value = f"done {ok}/{ok + fail}"
+            await s.commit()
+        if ok or fail:
+            from .channels import notify_admins
+            await notify_admins(f"🔕 Gönderilmiş {fmt(ok)} mesajdan 'Bildirimleri kapat' butonu kaldırıldı."
+                                + (f" ({fmt(fail)} mesaj düzenlenemedi: silinmiş veya kullanıcı engellemiş.)" if fail else ""))
+        return ok, fail
+
     # ---------- aktiflik kontrolü ----------
     async def check_active(self, bot_id: int) -> tuple[int, int]:
         """Mesaj atmadan 'yazıyor…' sinyali gönderir; hata verenleri engelli işaretler."""
