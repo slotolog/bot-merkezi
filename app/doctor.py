@@ -114,8 +114,14 @@ async def diagnose(manager, bot_id: int) -> tuple[str, bool]:
             pass
     err = POLL_ERRORS.get(bot_id)
     if err and time.time() - err["last"] < 600:
-        ok = False
-        lines.append(f"🔴 Son hata ({err['count']} kez): {explain(err['error'])}")
+        ago = int(time.time() - err["last"])
+        when = f"{ago} sn önce" if ago < 60 else f"{ago // 60} dk önce"
+        if ago < 90:  # hâlâ hata alıyor
+            ok = False
+            lines.append(f"🔴 Hata devam ediyor ({err['count']} kez, son: {when}): {explain(err['error'])}")
+        else:
+            lines.append(f"🟡 Geçmiş hata ({err['count']} kez, son: {when}, şu an tekrarlanmıyor): "
+                         f"{explain(err['error'])}")
     if last_seen:
         lines.append(f"👤 Son kullanıcı etkileşimi: {aware(last_seen).astimezone(TZ):%d.%m %H:%M}")
     lines += ["", "✅ Sorun görünmüyor. Bota /start yazıp dene." if ok else "⚠️ Yukarıdaki 🔴 maddeyi düzelt."]

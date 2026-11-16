@@ -35,6 +35,9 @@ class BotManager:
             return
         bot = self.bots.get(mb.id) or make_bot(mb.token)
         self.bots[mb.id] = bot
+        from .doctor import POLL_ERRORS
+        POLL_ERRORS.pop(mb.id, None)  # eski token/oturumdan kalan hata kayıtlarını temizle
+        self.crashes.pop(mb.id, None)
         dp = Dispatcher()
         dp.include_router(make_child_router())
         self.dps[mb.id] = dp
@@ -78,8 +81,8 @@ class BotManager:
         task = self.tasks.pop(bot_id, None)
         if dp:
             try:
-                await dp.stop_polling()
-            except RuntimeError:
+                await asyncio.wait_for(dp.stop_polling(), timeout=10)
+            except (RuntimeError, asyncio.TimeoutError):
                 pass
         if task:
             try:
