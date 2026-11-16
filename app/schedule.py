@@ -35,7 +35,7 @@ def parse_times(text: str) -> list[tuple[int, int]] | None:
 async def create_program_broadcast(bot_id: int, lib: LibItem) -> int:
     async with Session() as s:
         bc = Broadcast(created_by=min(ADMIN_IDS) if ADMIN_IDS else 0, msg=lib.msgs[0], msg_ids=lib.msgs,
-                       btn_text=lib.btn_text, buttons=None, unsub_btn=True, bot_ids=[bot_id],
+                       btn_text=lib.btn_text, buttons=None, unsub_btn=False, bot_ids=[bot_id],
                        status="queued", source="program")
         s.add(bc)
         await s.flush()

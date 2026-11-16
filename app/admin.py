@@ -699,7 +699,7 @@ async def cb_bc_new(c: CallbackQuery, state: FSMContext):
     await state.clear()
     sel = [int(c.data.split(":")[1])] if c.data.startswith("bcb:") else []
     await state.set_state(Bc.select)
-    await state.update_data(sel=sel, unsub=True)
+    await state.update_data(sel=sel, unsub=False)
     markup, _ = await select_kb(sel)
     await show(c, "📢 <b>Yeni yayın</b>\nHangi botlardan gönderilsin?", markup)
 
