@@ -233,6 +233,7 @@ async def bot_panel(bot_id: int):
         [("💬 Menü yanıtları", f"bmr:{bot_id}"), ("🔄 Aktiflik kontrolü", f"bchk:{bot_id}")],
         [("📥 Aboneleri indir (CSV)", f"bcsv:{bot_id}"), ("🩺 Teşhis", f"bdoc:{bot_id}")],
         [("📝 Bot açıklaması", f"bdesc:{bot_id}"), ("⌨️ Komutlar", f"cmd:{bot_id}")],
+        [("🗓 Haftalık program", f"sch:{bot_id}")],
         [("⏸ Durdur" if b.enabled else "▶️ Başlat", f"btog:{bot_id}"), ("🗑 Botu kaldır", f"bdel:{bot_id}")],
         [("⬅️ Botlarım", "bots")] + BACK_HOME,
     )

@@ -10,6 +10,7 @@ from .admin import channel_router, router as admin_router
 from .admin_auto import router as auto_router
 from .admin_channels import router as channels_router
 from .admin_cmds import router as cmds_router
+from .admin_sched import router as sched_router
 from .admin_poster import router as poster_router
 from .broadcast import BroadcastRunner
 from .config import ADMIN_BOT_TOKEN, ADMIN_IDS, PUBLIC_URL
@@ -19,6 +20,7 @@ from .automsg import AutoWorker
 from .channels import FeedRunner
 from .doctor import install as install_doctor, monitor_loop
 from .health import alert_loop
+from .schedule import ScheduleRunner
 from .manager import BotManager
 from .external import ExternalSync
 from .poster import PosterRunner
@@ -51,6 +53,7 @@ async def main():
     dp.include_router(auto_router)
     dp.include_router(channels_router)
     dp.include_router(cmds_router)
+    dp.include_router(sched_router)
     dp.include_router(poster_router)
     dp.include_router(channel_router)
 
@@ -68,6 +71,7 @@ async def main():
     auto_task = asyncio.create_task(AutoWorker(manager).loop())
     feed_task = asyncio.create_task(FeedRunner(manager).loop())
     health_task = asyncio.create_task(alert_loop())
+    sched_task = asyncio.create_task(ScheduleRunner(runner).loop())
     doctor_task = asyncio.create_task(monitor_loop(manager))
     hb_task = asyncio.create_task(ExternalSync(manager).loop())
     poster_task = asyncio.create_task(PosterRunner(manager).loop())
@@ -79,6 +83,7 @@ async def main():
         auto_task.cancel()
         feed_task.cancel()
         health_task.cancel()
+        sched_task.cancel()
         doctor_task.cancel()
         hb_task.cancel()
         poster_task.cancel()

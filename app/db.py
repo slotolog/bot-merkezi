@@ -39,6 +39,7 @@ class ManagedBot(Base):
     promo_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
     # özel komutlar: [{"cmd","desc","msgs","buttons","btn_text"} veya {"cmd","desc","action":"promo"}]
     commands: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    schedule_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
 
 
 class Subscriber(Base):
@@ -78,6 +79,7 @@ class Broadcast(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stats: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # {bot_id: {total,sent,blocked,failed}}
+    source: Mapped[str | None] = mapped_column(String(12), nullable=True)  # None=elle, "program"=haftalık program
 
 
 class Delivery(Base):
@@ -193,6 +195,20 @@ class SlotButtonSet(Base):
     name: Mapped[str] = mapped_column(String(64))
     rows: Mapped[list] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Schedule(Base):
+    """Haftalık program: bot, gün (0=Pzt), saat → kütüphane içeriği."""
+    __tablename__ = "schedules"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    weekday: Mapped[int] = mapped_column(Integer)
+    hour: Mapped[int] = mapped_column(Integer)
+    minute: Mapped[int] = mapped_column(Integer, default=0)
+    lib_id: Mapped[int] = mapped_column(Integer)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_run: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
+    count: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Setting(Base):

@@ -13,7 +13,7 @@ from sqlalchemy import delete, select, update
 
 from .config import PUBLIC_URL, SEND_RATE
 from .content import send_content, track_url
-from .db import Broadcast, Delivery, Session, Subscriber, all_bots, utcnow
+from .db import AutoQueue, Broadcast, Delivery, Session, Subscriber, all_bots, utcnow
 from .keyboards import build_markup
 from .manager import BotManager
 
@@ -82,14 +82,15 @@ class BroadcastRunner:
                 await s.commit()
             names = {b.id: b.username for b in await all_bots()}
             progress: dict[int, dict] = {bid: {"total": 0, "sent": 0, "blocked": 0, "failed": 0} for bid in bc.bot_ids}
-            status_msg = await self.admin_bot.send_message(bc.created_by, f"📢 Yayın #{bc_id} başladı…")
+            quiet = bc.source == "program"
+            status_msg = None if quiet else await self.admin_bot.send_message(bc.created_by, f"📢 Yayın #{bc_id} başladı…")
             msg_ids = bc.msg_ids or [bc.msg]
 
             done = asyncio.Event()
 
             async def updater():
                 last = ""
-                while not done.is_set():
+                while not done.is_set() and status_msg is not None:
                     await asyncio.sleep(4)
                     text = self._progress_text(bc_id, progress, names, final=False)
                     if text != last:
@@ -112,7 +113,12 @@ class BroadcastRunner:
             kb = InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="🗑 Tüm botlardan sil", callback_data=f"repdel:{bc_id}"),
                 InlineKeyboardButton(text="📑 Rapor", callback_data=f"rep:{bc_id}")]])
-            await status_msg.edit_text(self._progress_text(bc_id, progress, names, final=True), reply_markup=kb)
+            final = self._progress_text(bc_id, progress, names, final=True)
+            if status_msg is not None:
+                await status_msg.edit_text(final, reply_markup=kb)
+            else:
+                await self.admin_bot.send_message(bc.created_by, "🗓 <b>Program gönderimi</b>\n" + final,
+                                                  reply_markup=kb, disable_notification=True)
         except Exception:
             log.exception("Yayın #%s hata", bc_id)
         finally:
@@ -138,6 +144,10 @@ class BroadcastRunner:
         tracking = bool(PUBLIC_URL) and any(b.get("lid") for row in (bc.buttons or []) for b in row)
         static_markup = build_markup(bc.buttons, unsub=bc.unsub_btn)
         users = await active_user_ids(bot_id)
+        if bc.source == "program":  # otomatik zinciri hâlâ devam edenler programa girmez
+            async with Session() as s:
+                in_chain = set((await s.scalars(select(AutoQueue.user_id).where(AutoQueue.bot_id == bot_id))).all())
+            users = [u for u in users if u not in in_chain]
         p["total"] = len(users)
         if not bot:
             p["failed"] = len(users)
