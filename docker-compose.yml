@@ -24,6 +24,22 @@ services:
       # Harici botların (A/B modu) veri klasörleri — EXTERNAL_DIRS ile eşleşmeli
       - /opt/haberolog/data:/haberolog
       - /opt/seyahat/data:/seyahat
+      - /opt/isharberi/data:/isharberi
+    environment:
+      EXTERNAL_DIRS: /haberolog,/seyahat,/isharberi
+    depends_on:
+      db:
+        condition: service_healthy
+  isharberi:
+    # İş Haberleri botu (harici servis, A/B modu). Token Merkez veritabanından okunur.
+    build: ./services/isharberi
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      ISHABER_USERNAME: ${ISHABER_USERNAME:-}
+    volumes:
+      - /opt/isharberi/data:/data
     depends_on:
       db:
         condition: service_healthy

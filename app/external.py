@@ -20,7 +20,8 @@ from sqlalchemy import select
 from .db import ManagedBot, Session, Subscriber
 
 log = logging.getLogger(__name__)
-EXT_DIRS = [Path(p.strip()) for p in os.environ.get("EXTERNAL_DIRS", "/haberolog,/seyahat").split(",") if p.strip()]
+EXT_DIRS = [Path(p.strip()) for p in os.environ.get("EXTERNAL_DIRS", "/haberolog,/seyahat,/isharberi").split(",")
+            if p.strip()]
 LEGACY = {"haberolog": "haberologbot"}  # BOT_ID dosyası yazmayan eski sürümler için
 _DIR_BY_ID: dict[int, Path] = {}
 
@@ -50,7 +51,8 @@ def ext_dir(mb: ManagedBot | None) -> Path | None:
 
 
 def label(d: Path) -> str:
-    return {"haberolog": "Haberolog", "seyahat": "Seyahat Rehberi"}.get(d.name, d.name.capitalize())
+    return {"haberolog": "Haberolog", "seyahat": "Seyahat Rehberi", "isharberi": "İş Haberleri"}.get(
+        d.name, d.name.capitalize())
 
 
 def mode(d: Path) -> str:
