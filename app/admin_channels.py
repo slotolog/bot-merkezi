@@ -66,7 +66,7 @@ async def main_screen():
         lines += ["", "ℹ️ Kanal eklemek için paylaşım botunu kanala <b>admin</b> yap (mesaj gönderme yetkisiyle). "
                       "Sistem kanalı otomatik tanır."]
     rows = [[("⏸ Akışı durdur" if cfg["enabled"] else "▶️ Akışı başlat", "cht")],
-            [("📋 Post sırası", "chq"), ("📡 Kanallar", "chc")],
+            [("📋 Post sırası", "chq"), ("📡 Kanallar & Gruplar", "chc")],
             [(f"⏱ Sıklık", "chi"), ("🕘 Saatler", "chh")],
             [("🔀 Mod değiştir", "chm"), (f"🗑 Önceki sil: {'Açık' if cfg['delete_prev'] else 'Kapalı'}", "chd")],
             [(f"📌 Sabitle: {'Açık' if cfg['pin'] else 'Kapalı'}", "chp")],
@@ -247,7 +247,7 @@ async def channels_screen():
         names = {b.id: b.username for b in (await s.scalars(select(ManagedBot))).all()}
         counts = dict((await s.execute(select(ChannelLog.channel_id, func.count())
                                        .where(ChannelLog.ok.is_(True)).group_by(ChannelLog.channel_id))).all())
-    lines = ["📡 <b>Kanallar</b>", ""]
+    lines = ["📡 <b>Kanallar & Gruplar</b>", ""]
     rows = []
     for ch in chans:
         st = "🟢" if ch.enabled else "⏸"
@@ -261,6 +261,7 @@ async def channels_screen():
         lines += ["", "🎰 Slotolog kanalı bu akışa dahil değil, <b>🎰 Slotolog Post</b> menüsünden yönetilir."]
     lines += ["", "<b>Kanal eklemek için:</b> Bağlı botlarından birini kanala <b>admin</b> yap "
                   "(\"Mesaj gönderme\" yetkisi açık). Sistem otomatik tanır.",
+              "<b>Grup eklemek için:</b> Botu gruba üye olarak ekle (sabitleme/silme için admin yap).",
               "Bot zaten kanalda admin ise ➕ ile kanalın kullanıcı adını yaz veya kanaldan bir postu ilet.",
               "", "🟢/⏸ = o kanala paylaşımı aç/kapat"]
     rows.append([("➕ Kanal ekle", "chcadd")])
@@ -296,8 +297,8 @@ async def cb_channel_item(c: CallbackQuery):
 @router.callback_query(F.data == "chcadd")
 async def cb_channel_add(c: CallbackQuery, state: FSMContext):
     await state.set_state(ChSt.add_channel)
-    await show(c, "➕ Kanalın kullanıcı adını yaz (ör. <code>@kanalim</code>) veya kanaldan bir postu buraya ilet.\n"
-                  "Bağlı botlarından biri o kanalda admin olmalı. İptal: /iptal")
+    await show(c, "➕ Kanalın/grubun kullanıcı adını yaz (ör. <code>@kanalim</code>), sayısal ID'sini yaz ya da "
+                  "kanaldan bir postu buraya ilet.\nBağlı botlarından biri kanalda admin / grupta üye olmalı. İptal: /iptal")
 
 
 @router.message(ChSt.add_channel)
@@ -321,13 +322,18 @@ async def on_channel_add(m: Message, state: FSMContext, manager: BotManager):
             member = await bot.get_chat_member(chat.id, me.id)
         except Exception:
             continue
-        if member.status == "administrator" and chat.type == "channel":
+        if chat.type == "channel" and member.status == "administrator":
             await register_channel(bot, chat, bool(getattr(member, "can_post_messages", False)))
-            await state.clear()
-            await m.answer(f"✅ <b>{html.escape(chat.title or '')}</b> eklendi (@{html.escape(me.username)} paylaşacak).",
-                           reply_markup=kb([("📡 Kanallar", "chc")]))
-            return
-    await m.answer("❌ Bağlı botlarından hiçbiri bu kanalda admin değil. Önce bir botu kanala admin yap, sonra tekrar dene.")
+        elif chat.type in ("group", "supergroup") and member.status in ("administrator", "member"):
+            await register_channel(bot, chat, True)
+        else:
+            continue
+        await state.clear()
+        await m.answer(f"✅ <b>{html.escape(chat.title or '')}</b> eklendi (@{html.escape(me.username)} paylaşacak).",
+                       reply_markup=kb([("📡 Kanallar & Gruplar", "chc")]))
+        return
+    await m.answer("❌ Bağlı botlarından hiçbiri bu kanalda/grupta bulunamadı. Kanalsa botu admin yap, "
+                   "grupsa üye olarak ekle; sonra tekrar dene.")
 
 
 # ---------------- şimdi paylaş ----------------

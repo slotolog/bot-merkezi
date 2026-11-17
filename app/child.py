@@ -111,6 +111,24 @@ def make_child_router() -> Router:
         elif new.status in ("left", "kicked", "member"):
             await unregister_channel(bot, ev.chat)
 
+    @r.my_chat_member(F.chat.type.in_({"group", "supergroup"}))
+    async def on_group_member(ev: ChatMemberUpdated, bot: Bot):
+        """Paylaşım botu bir gruba eklenince grup da paylaşım listesine girer (kanal gibi)."""
+        from .channels import register_channel, unregister_channel
+        new = ev.new_chat_member
+        if new.status in ("administrator", "member"):
+            await register_channel(bot, ev.chat, True)
+        elif new.status == "restricted" and getattr(new, "is_member", True):
+            await register_channel(bot, ev.chat, bool(getattr(new, "can_send_messages", False)))
+        else:
+            await unregister_channel(bot, ev.chat)
+
+    @r.message(F.migrate_to_chat_id)
+    async def on_group_migrate(m: Message, bot: Bot):
+        """Grup süper gruba dönüşünce ID değişir; kaydı yeni ID'ye taşı."""
+        from .channels import migrate_channel
+        await migrate_channel(m.chat.id, m.migrate_to_chat_id)
+
     @r.callback_query(F.data == "unsub")
     async def on_unsub(c: CallbackQuery, bot: Bot):
         await set_status(bot.id, c.from_user.id, "unsub")

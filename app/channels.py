@@ -110,8 +110,8 @@ async def register_channel(bot: Bot, chat, can_post: bool):
         await s.commit()
     me = await bot.me()
     if not can_post:
-        await notify_admins(f"⚠️ @{html.escape(me.username)} <b>{html.escape(chat.title or '')}</b> kanalına admin "
-                            "eklendi ama <b>mesaj gönderme</b> yetkisi kapalı. Yetkiyi açınca kanal otomatik aktif olur.")
+        await notify_admins(f"⚠️ @{html.escape(me.username)} <b>{html.escape(chat.title or '')}</b> "
+                            f"{'grubuna' if _kind(chat) == 'grubu' else 'kanalına'} eklendi ama <b>mesaj gönderme</b> yetkisi kapalı. Yetkiyi açınca otomatik aktif olur.")
     elif new:
         warn = ""
         try:
@@ -119,9 +119,22 @@ async def register_channel(bot: Bot, chat, can_post: bool):
         except Exception:
             warn = (f"\n\n⚠️ @{html.escape(me.username)} depo kanalında admin değil. Paylaşım yapabilmesi için "
                     "bu botu depo kanalına da <b>admin</b> olarak ekle.")
-        await notify_admins(f"✅ Yeni kanal eklendi: <b>{html.escape(chat.title or '')}</b>\n"
+        await notify_admins(f"✅ Yeni {'grup' if _kind(chat) == 'grubu' else 'kanal'} eklendi: <b>{html.escape(chat.title or '')}</b>\n"
                             f"Paylaşımı @{html.escape(me.username)} yapacak. 📢 Kanal Paylaşımları menüsünden yönetebilirsin."
                             + warn)
+
+
+def _kind(chat) -> str:
+    return "grubu" if getattr(chat, "type", "channel") in ("group", "supergroup") else "kanalı"
+
+
+async def migrate_channel(old_id: int, new_id: int):
+    async with Session() as s:
+        ch = await s.get(Channel, old_id)
+        if ch and not await s.get(Channel, new_id):
+            s.add(Channel(id=new_id, bot_id=ch.bot_id, title=ch.title, username=ch.username, enabled=ch.enabled))
+            await s.delete(ch)
+            await s.commit()
 
 
 async def unregister_channel(bot: Bot, chat):
@@ -130,8 +143,8 @@ async def unregister_channel(bot: Bot, chat):
         if ch and ch.bot_id == bot.id:
             ch.enabled = False
             await s.commit()
-            await notify_admins(f"⚠️ Bot <b>{html.escape(chat.title or '')}</b> kanalından çıkarıldı, "
-                                "bu kanala paylaşım durduruldu.")
+            where = "grubundan" if _kind(chat) == "grubu" else "kanalından"
+            await notify_admins(f"⚠️ Bot <b>{html.escape(chat.title or '')}</b> {where} çıkarıldı, paylaşım durduruldu.")
 
 
 async def explain_not_found(bot: Bot, channel_id: int) -> str:
