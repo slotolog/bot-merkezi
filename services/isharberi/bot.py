@@ -460,12 +460,24 @@ class Service:
 
     # ---- token / kimlik ----
     async def resolve_token(self):
-        if not USERNAME or not DB_URL:
+        """Hangi bot? Önce Merkez'deki '🔗 servise bağla' ayarı (settings.ext_isharberi), yoksa ISHABER_USERNAME."""
+        if not DB_URL:
             return None
         try:
             conn = await asyncpg.connect(DB_URL)
             try:
-                return await conn.fetchrow("SELECT id, token, username FROM bots WHERE lower(username)=$1", USERNAME)
+                linked = None
+                try:
+                    linked = await conn.fetchval("SELECT value FROM settings WHERE key='ext_isharberi'")
+                except Exception:
+                    pass
+                if linked and linked.strip().lstrip("-").isdigit():
+                    row = await conn.fetchrow("SELECT id, token, username FROM bots WHERE id=$1", int(linked))
+                    if row:
+                        return row
+                if USERNAME:
+                    return await conn.fetchrow("SELECT id, token, username FROM bots WHERE lower(username)=$1", USERNAME)
+                return None
             finally:
                 await conn.close()
         except Exception as e:
@@ -541,6 +553,26 @@ class Service:
                  "lang": u["lang"], "joined_at": u["joined_at"], "ref": u["ref"], "blocked": bool(u["blocked"])}
                 for u in store.all_users()]
         self.write("users.json", json.dumps(data, ensure_ascii=False))
+
+    async def import_merkez_subscribers(self, bot_id: int):
+        """Bot ilk bağlandığında Merkez'deki mevcut abonelerini bir kez içe aktarır."""
+        if store.get(f"imported_{bot_id}") == "1":
+            return
+        try:
+            conn = await asyncpg.connect(DB_URL)
+            try:
+                rows = await conn.fetch("SELECT user_id, username, first_name, lang, source, status, joined_at "
+                                        "FROM subscribers WHERE bot_id=$1", bot_id)
+            finally:
+                await conn.close()
+        except Exception as e:
+            log.warning("Merkez aboneleri okunamadı: %s", e)
+            return
+        n = sum(store.import_user(r["user_id"], r["username"], r["first_name"], r["lang"], r["status"] != "active",
+                                  int(r["joined_at"].timestamp()) if r["joined_at"] else None, r["source"])
+                for r in rows)
+        store.set(f"imported_{bot_id}", "1")
+        log.info("Merkez'deki %d abone içe aktarıldı (%d yeni).", len(rows), n)
 
     def import_from_merkezi(self):
         p = DATA / "from_merkezi.json"
@@ -629,11 +661,9 @@ class Service:
         while True:
             row = await self.resolve_token()
             if not row:
-                if not USERNAME:
-                    log.warning("ISHABER_USERNAME ayarlı değil; bot bağlanmadan sadece haber toplanıyor.")
-                else:
-                    log.info("@%s henüz Bot Merkezi'ne eklenmemiş, bekleniyor…", USERNAME)
-                await asyncio.sleep(60)
+                log.info("Henüz bir bota bağlanmadı (Merkez → bot paneli → 🔗 İş Haberleri servisine bağla). "
+                         "Bu sırada haber toplanıyor.")
+                await asyncio.sleep(20)
                 continue
             if row["token"] != self.token:  # ilk açılış veya token yenilendi
                 await self.stop_polling()
@@ -641,9 +671,10 @@ class Service:
                     await self.bot.session.close()
                 self.token, self.bot_id = row["token"], row["id"]
                 self.bot = self.make_bot(self.token)
+                await self.import_merkez_subscribers(row["id"])
                 self.write("BOT_ID", f"{row['id']} {row['username']}")
                 log.info("Bot bağlandı: @%s (%s)", row["username"], row["id"])
-            for _ in range(60):  # ~5 dk boyunca 5 sn'de bir mod kontrolü
+            for _ in range(12):  # ~1 dk boyunca 5 sn'de bir mod kontrolü, sonra bağlantı/token tekrar okunur
                 self.import_from_merkezi()
                 if self.mode() == "A":
                     await self.start_polling()

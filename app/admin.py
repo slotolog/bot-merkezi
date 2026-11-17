@@ -246,7 +246,43 @@ async def bot_panel(bot_id: int):
             markup.inline_keyboard = [r for r in markup.inline_keyboard
                                       if not any((x.callback_data or "").startswith("btog:") for x in r)] + []
             markup.inline_keyboard.insert(-1, [IB(text="🗑 Botu kaldır", callback_data=f"bdel:{bot_id}")])
+    else:
+        # Henüz bir bota bağlanmamış harici servis varsa (ör. İş Haberleri) bağlama düğmesi göster
+        from .external import free_services
+        for svc in free_services():
+            markup.inline_keyboard.insert(0, [IB(text=f"🔗 {label(svc)} servisine bağla",
+                                                 callback_data=f"extl:{svc.name}:{bot_id}")])
     return text, markup
+
+
+@router.callback_query(F.data.startswith(("extl:", "extlok:")))
+async def cb_ext_link(c: CallbackQuery, manager: BotManager):
+    from pathlib import Path
+    from .external import label
+    from .settings import RUNTIME  # noqa: F401
+    action, svc, bid = c.data.split(":")
+    d = Path("/" + svc)
+    async with Session() as s:
+        b = await s.get(ManagedBot, int(bid))
+    if action == "extl":
+        await show(c, f"🔗 @{html.escape(b.username)} <b>{label(d)}</b> servisine bağlansın mı?\n\n"
+                      f"Bot bundan sonra {label(d)} sisteminin kendi menüleri ve otomatik içerikleriyle çalışır (A modu). "
+                      "Profil adı, açıklaması, komutları ve fotoğrafı servis tarafından ayarlanır.\n"
+                      "İstediğin zaman 🔀 Mod düğmesiyle Merkez'e (B modu) alabilirsin.",
+                   kb([("✅ Evet, bağla", f"extlok:{svc}:{bid}"), ("❌ Vazgeç", f"bot:{bid}")]))
+        return
+    from .db import Setting
+    async with Session() as s:
+        row = await s.get(Setting, f"ext_{svc}")
+        if row:
+            row.value = str(b.id)
+        else:
+            s.add(Setting(key=f"ext_{svc}", value=str(b.id)))
+        await s.commit()
+    await show(c, f"⏳ @{html.escape(b.username)} {label(d)} servisine bağlanıyor…\n"
+                  "1–2 dakika içinde servis botu devralır. Sonra bota /start yazıp dene.\n\n"
+                  "Bot panelinde 🔀 Mod: 🅰️ görünürse bağlantı tamam.",
+               kb([("🔄 Paneli yenile", f"bot:{bid}")]))
 
 
 @router.callback_query(F.data.startswith("hbm:"))

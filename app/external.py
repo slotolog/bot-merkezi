@@ -50,6 +50,11 @@ def ext_dir(mb: ManagedBot | None) -> Path | None:
     return None
 
 
+def free_services() -> list[Path]:
+    """Klasörü bağlı ama henüz bir bota bağlanmamış (BOT_ID yazmamış) harici servisler."""
+    return [d for d in EXT_DIRS if d.is_dir() and _ident(d)[0] is None and d.name not in LEGACY]
+
+
 def label(d: Path) -> str:
     return {"haberolog": "Haberolog", "seyahat": "Seyahat Rehberi", "isharberi": "İş Haberleri"}.get(
         d.name, d.name.capitalize())

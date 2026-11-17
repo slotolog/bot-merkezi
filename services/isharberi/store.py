@@ -70,12 +70,15 @@ class Store:
     def all_users(self):
         return self.db.execute("SELECT * FROM users").fetchall()
 
-    def import_user(self, uid, username, first_name, lang, blocked):
+    def import_user(self, uid, username, first_name, lang, blocked, joined_at=None, ref="merkez",
+                    mode="bulletin", bulletin_hour=12):
+        """Merkez'den gelen abone; varsayılan günlük bülten (ani bildirim yağmuru olmasın)."""
         if self.user(uid):
             return False
-        self.db.execute("INSERT INTO users(user_id,username,first_name,lang,joined_at,ref,blocked,onboarded) "
-                        "VALUES(?,?,?,?,?,?,?,1)",
-                        (uid, username, first_name, lang, int(time.time()), "merkez", 1 if blocked else 0))
+        self.db.execute("INSERT INTO users(user_id,username,first_name,lang,joined_at,ref,blocked,onboarded,mode,bulletin_hour) "
+                        "VALUES(?,?,?,?,?,?,?,1,?,?)",
+                        (uid, username, first_name, lang, joined_at or int(time.time()), ref or "merkez",
+                         1 if blocked else 0, mode, bulletin_hour))
         self.db.commit()
         return True
 
